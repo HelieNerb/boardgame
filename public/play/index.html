@@ -1,19 +1,37 @@
 <!DOCTYPE html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css">
-</head>
 <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/style.css">
+  </head>
   <body>
-    <h1>Rejoindre une partie</h1>
-    <input id="code" placeholder="Code" maxlength="4"><br>
-    <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
-    <button onclick="rejoindre()">Rejoindre</button>
+    <div id="formulaire">
+      <h1>Rejoindre une partie</h1>
+      <input id="code" placeholder="Code" maxlength="4"><br>
+      <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
+      <button onclick="rejoindre()">Rejoindre</button>
+    </div>
+
     <p id="message" class="message"></p>
+
+    <div id="jeu" hidden>
+      <button onclick="socket.emit('lancer-de')">Lancer le dé</button>
+      <p id="de"></p>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
+
+      const params = new URLSearchParams(window.location.search);
+      const codeFromUrl = params.get('code');
+
+      if (codeFromUrl) {
+        const champCode = document.getElementById('code');
+        champCode.value = codeFromUrl.toUpperCase();
+        // Donne directement le focus au pseudo pour que le joueur n'ait plus qu'à taper son nom
+        document.getElementById('pseudo').focus();
+      }
 
       function rejoindre() {
         socket.emit('rejoindre', {
@@ -23,12 +41,22 @@
       }
 
       socket.on('rejoint', ({ code, pseudo }) => {
+        document.getElementById('formulaire').hidden = true;
         document.getElementById('message').textContent =
-          'Salut ' + pseudo + ' ! Tu es dans la partie ' + code;
+          'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
       });
 
       socket.on('erreur', (texte) => {
         document.getElementById('message').textContent = texte;
+      });
+
+      socket.on('partie-demarree', () => {
+        document.getElementById('message').textContent = 'La partie a commencé !';
+        document.getElementById('jeu').hidden = false;
+      });
+
+      socket.on('resultat-de', (de) => {
+        document.getElementById('de').textContent = 'Tu as fait ' + de;
       });
     </script>
   </body>

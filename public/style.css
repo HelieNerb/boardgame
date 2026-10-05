@@ -54,3 +54,31 @@ li {
   margin: 0.3rem;
   font-size: 1.3rem;
 }
+
+.plateau {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.case {
+  width: 120px;
+  min-height: 90px;
+  padding: 0.5rem;
+  border-radius: 8px;
+  color: #1d2b4f;
+  font-weight: bold;
+}
+
+.case small {
+  display: block;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 0.3rem;
+}
+
+.depart { background: #ddd; }
+.bleue  { background: #6ab0ff; }
+.rouge  { background: #ff7b7b; }
+.etoile { background: #ffd166; }

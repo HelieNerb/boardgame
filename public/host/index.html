@@ -1,35 +1,91 @@
 <!DOCTYPE html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="/style.css">
-</head>
 <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/style.css">
+  </head>
   <body>
-    <h1>Écran principal</h1>
-    <p>Code de la partie :</p>
-    <h2 id="code" class="code-partie">...</h2>
-    <h3>Joueurs</h3>
-    <ul id="liste"></ul>
+    <div id="salon">
+      <h1>Écran principal</h1>
+      <p>Code de la partie :</p>
+      <h2 id="code" class="code-partie">...</h2>
+
+      <!-- Affichage direct de l'image -->
+      <div style="margin: 15px 0;">
+        <img id="qr-image" alt="QR Code pour rejoindre" style="display: none; border-radius: 8px;">
+      </div>
+
+      <p>⚠️ Vérifiez que vous êtes bien sur le même réseau local que le serveur</p>
+
+      <h3>Joueurs</h3>
+      <ul id="liste"></ul>
+      <button onclick="socket.emit('demarrer')">Démarrer la partie</button>
+    </div>
+
+    <div id="jeu" hidden>
+      <h1>Plateau</h1>
+      <div id="plateau" class="plateau"></div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
+      let plateau = [];
 
       socket.emit('creer-partie');
 
-      socket.on('partie-creee', (code) => {
+      socket.on('partie-creee', ({ code, qr }) => {
         document.getElementById('code').textContent = code;
+
+        if (qr) {
+          const img = document.getElementById('qr-image');
+          img.src = qr;
+          img.style.display = 'inline-block';
+        }
       });
 
       socket.on('liste-joueurs', (joueurs) => {
         const liste = document.getElementById('liste');
         liste.innerHTML = '';
-        for (const pseudo of joueurs) {
+        for (const joueur of joueurs) {
           const li = document.createElement('li');
-          li.textContent = pseudo;
+          li.textContent = joueur.pseudo;
           liste.appendChild(li);
         }
       });
+
+      socket.on('partie-demarree', (donnees) => {
+        plateau = donnees.plateau;
+        document.getElementById('salon').hidden = true;
+        document.getElementById('jeu').hidden = false;
+        afficherPlateau(donnees.joueurs);
+      });
+
+      socket.on('positions', (joueurs) => afficherPlateau(joueurs));
+
+      function afficherPlateau(joueurs) {
+        const div = document.getElementById('plateau');
+        div.innerHTML = '';
+
+        plateau.forEach((type, i) => {
+          const caseDiv = document.createElement('div');
+          caseDiv.className = 'case ' + type;
+
+          const titre = document.createElement('small');
+          titre.textContent = type;
+          caseDiv.appendChild(titre);
+
+          for (const joueur of joueurs) {
+            if (joueur.position === i) {
+              const pion = document.createElement('div');
+              pion.textContent = joueur.pseudo;
+              caseDiv.appendChild(pion);
+            }
+          }
+
+          div.appendChild(caseDiv);
+        });
+      }
     </script>
   </body>
 </html>
