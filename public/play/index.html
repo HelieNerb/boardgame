@@ -1,7 +1,31 @@
 <!DOCTYPE html>
 <html>
   <body>
-    <h1>Page des joueurs
-    </h1>
+    <h1>Rejoindre une partie</h1>
+    <input id="code" placeholder="Code" maxlength="4"><br>
+    <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
+    <button onclick="rejoindre()">Rejoindre</button>
+    <p id="message"></p>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      function rejoindre() {
+        socket.emit('rejoindre', {
+          code: document.getElementById('code').value,
+          pseudo: document.getElementById('pseudo').value,
+        });
+      }
+
+      socket.on('rejoint', ({ code, pseudo }) => {
+        document.getElementById('message').textContent =
+          'Salut ' + pseudo + ' ! Tu es dans la partie ' + code;
+      });
+
+      socket.on('erreur', (texte) => {
+        document.getElementById('message').textContent = texte;
+      });
+    </script>
   </body>
 </html>

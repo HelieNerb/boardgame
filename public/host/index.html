@@ -1,6 +1,31 @@
 <!DOCTYPE html>
 <html>
   <body>
-    <h1>Page de l'hôte</h1>
+    <h1>Écran principal</h1>
+    <p>Code de la partie :</p>
+    <h2 id="code">...</h2>
+    <h3>Joueurs</h3>
+    <ul id="liste"></ul>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      socket.emit('creer-partie');
+
+      socket.on('partie-creee', (code) => {
+        document.getElementById('code').textContent = code;
+      });
+
+      socket.on('liste-joueurs', (joueurs) => {
+        const liste = document.getElementById('liste');
+        liste.innerHTML = '';
+        for (const pseudo of joueurs) {
+          const li = document.createElement('li');
+          li.textContent = pseudo;
+          liste.appendChild(li);
+        }
+      });
+    </script>
   </body>
 </html>
