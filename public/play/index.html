@@ -1,11 +1,15 @@
 <!DOCTYPE html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
 <html>
   <body>
     <h1>Rejoindre une partie</h1>
     <input id="code" placeholder="Code" maxlength="4"><br>
     <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
     <button onclick="rejoindre()">Rejoindre</button>
-    <p id="message"></p>
+    <p id="message" class="message"></p>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>

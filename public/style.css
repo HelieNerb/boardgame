@@ -1,0 +1,56 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #1d2b4f;
+  color: white;
+  text-align: center;
+  margin: 0;
+  padding: 2rem 16px;
+}
+
+input, button {
+  font-size: 1.2rem;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
+  margin: 0.4rem 0;
+  text-align: center;
+}
+
+button {
+  background: #ffd166;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+a {
+  color: #ffd166;
+  font-size: 1.3rem;
+}
+
+.code-partie {
+  font-size: 5rem;
+  letter-spacing: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.message {
+  color: #ffd166;
+  min-height: 1.5rem;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  display: inline-block;
+  background: #3a4f86;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  margin: 0.3rem;
+  font-size: 1.3rem;
+}
