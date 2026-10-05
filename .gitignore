@@ -1,0 +1,16 @@
+# Dépendances (chacun fait npm install)
+node_modules/
+
+# Variables d'environnement et secrets
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Éditeurs
+.idea/
