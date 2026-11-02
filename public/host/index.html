@@ -25,6 +25,8 @@
     <div id="jeu" hidden>
       <h1>Plateau</h1>
       <h2 id="info-tour" class="info-tour"></h2>
+      <p id="message-effet" class="message"></p>
+      <div id="scores" class="scores"></div>
       <div id="plateau" class="plateau"></div>
     </div>
 
@@ -73,6 +75,7 @@
 
       socket.on('tour', ({ tourActuel, nbTours, joueurActif }) => {
         pseudoActif = joueurActif;
+        document.getElementById('message-effet').textContent = '';
         document.getElementById('info-tour').textContent =
           'Tour ' + tourActuel + ' / ' + nbTours + ' — C\'est à ' + joueurActif + ' de jouer !';
         afficherPlateau();
@@ -83,23 +86,39 @@
         afficherPlateau();
       });
 
-      socket.on('fin-de-partie', (donnees) => {
+      socket.on('effet-case', ({ message }) => {
+        document.getElementById('message-effet').textContent = message;
+      });
+
+      socket.on('fin-de-partie', ({ classement }) => {
         document.getElementById('jeu').hidden = true;
         document.getElementById('fin').hidden = false;
 
-        // Pour l'instant : classement provisoire par position sur le plateau
-        // (à remplacer par étoiles puis pièces quand ils existeront)
+        // Le serveur envoie déjà le classement trié (étoiles, puis pièces)
         const resultats = document.getElementById('resultats');
         resultats.innerHTML = '';
-        const classement = [...donnees.joueurs].sort((a, b) => b.position - a.position);
         classement.forEach((joueur, i) => {
           const p = document.createElement('p');
-          p.textContent = (i + 1) + '. ' + joueur.pseudo;
+          p.textContent =
+            (i + 1) + '. ' + joueur.pseudo + ' — ' + joueur.etoiles + ' ⭐ — ' + joueur.pieces + ' 🪙';
           resultats.appendChild(p);
         });
       });
 
+      function afficherScores() {
+        const div = document.getElementById('scores');
+        div.innerHTML = '';
+        for (const joueur of joueurs) {
+          const carte = document.createElement('div');
+          carte.className = 'score' + (joueur.pseudo === pseudoActif ? ' score-actif' : '');
+          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐';
+          div.appendChild(carte);
+        }
+      }
+
       function afficherPlateau() {
+        afficherScores();
+
         const div = document.getElementById('plateau');
         div.innerHTML = '';
 

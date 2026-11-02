@@ -16,6 +16,7 @@
     <p id="message" class="message"></p>
 
     <div id="jeu" hidden>
+      <p id="stats" class="stats"></p>
       <p id="statut-tour" class="statut-tour"></p>
       <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
       <p id="de"></p>
@@ -76,6 +77,29 @@
 
       socket.on('resultat-de', (de) => {
         document.getElementById('de').textContent = 'Tu as fait ' + de;
+      });
+
+      // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné
+      socket.on('effet-case', ({ pseudo, message }) => {
+        if (pseudo === monPseudo) {
+          document.getElementById('de').textContent += ' — ' + message;
+        }
+      });
+
+      // À chaque mise à jour, on retrouve ses propres compteurs dans la liste
+      socket.on('positions', (joueurs) => {
+        const moi = joueurs.find((j) => j.pseudo === monPseudo);
+        if (moi) {
+          document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
+        }
+      });
+
+      // 'partie-demarree' contient aussi la liste : on affiche les compteurs dès le début
+      socket.on('partie-demarree', ({ joueurs }) => {
+        const moi = joueurs.find((j) => j.pseudo === monPseudo);
+        if (moi) {
+          document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
+        }
       });
 
       socket.on('fin-de-partie', () => {

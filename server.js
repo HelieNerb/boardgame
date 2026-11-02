@@ -33,7 +33,13 @@ const PLATEAU = [
 
 // Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
 const NB_TOURS_DEFAUT = 5;
-const DELAI_FIN_TOUR_JOUEUR = 1500; // ms, le temps de voir le pion avancer
+const DELAI_FIN_TOUR_JOUEUR = 2500; // ms, le temps de voir le pion avancer et l'effet de la case
+
+// Règles de l'économie du jeu
+const PIECES_DEPART = 5;
+const GAIN_CASE_BLEUE = 3;
+const PERTE_CASE_ROUGE = 3;
+const PRIX_ETOILE = 10;
 
 const parties = new Map();
 
@@ -62,6 +68,51 @@ function genererCode() {
 
 function joueurActif(partie) {
   return partie.joueurs[partie.indexActif];
+}
+
+// ─────────────────────────────────────────────
+//  Effets des cases
+//
+//  Appelée quand un joueur vient d'arriver sur une case.
+//  Elle modifie le joueur (pièces / étoiles) et renvoie un objet
+//  { type, message } que l'on envoie aux écrans pour l'afficher.
+// ─────────────────────────────────────────────
+
+function appliquerEffetCase(joueur) {
+  const type = PLATEAU[joueur.position];
+
+  switch (type) {
+    case 'bleue':
+      joueur.pieces += GAIN_CASE_BLEUE;
+      return { type, message: `${joueur.pseudo} gagne ${GAIN_CASE_BLEUE} pièces !` };
+
+    case 'rouge': {
+      // On ne descend jamais sous 0 pièce
+      const perte = Math.min(PERTE_CASE_ROUGE, joueur.pieces);
+      joueur.pieces -= perte;
+      return { type, message: `${joueur.pseudo} perd ${perte} pièces...` };
+    }
+
+    case 'etoile':
+      if (joueur.pieces >= PRIX_ETOILE) {
+        joueur.pieces -= PRIX_ETOILE;
+        joueur.etoiles++;
+        return { type, message: `${joueur.pseudo} achète une étoile pour ${PRIX_ETOILE} pièces ! ⭐` };
+      }
+      return {
+        type,
+        message: `${joueur.pseudo} n'a pas assez de pièces pour l'étoile (${PRIX_ETOILE} nécessaires)`,
+      };
+
+    default:
+      // 'depart' : aucun effet
+      return { type, message: `${joueur.pseudo} est sur la case départ` };
+  }
+}
+
+// Classement : plus d'étoiles d'abord, puis plus de pièces en cas d'égalité
+function classement(partie) {
+  return [...partie.joueurs].sort((a, b) => b.etoiles - a.etoiles || b.pieces - a.pieces);
 }
 
 // Démarre le tour du joueur à partie.indexActif
@@ -118,7 +169,7 @@ function finDePartie(code) {
   if (!partie) return;
 
   partie.phase = 'fin';
-  io.to(code).emit('fin-de-partie', { joueurs: partie.joueurs });
+  io.to(code).emit('fin-de-partie', { classement: classement(partie) });
 }
 
 io.on('connection', (socket) => {
@@ -176,7 +227,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    partie.joueurs.push({ pseudo, position: 0 });
+    partie.joueurs.push({ pseudo, position: 0, pieces: PIECES_DEPART, etoiles: 0 });
     socket.join(code);
     socket.data.code = code;
     socket.data.pseudo = pseudo;
@@ -214,9 +265,11 @@ io.on('connection', (socket) => {
     joueur.position = (joueur.position + de) % PLATEAU.length;
 
     socket.emit('resultat-de', de);
-    io.to(code).emit('positions', partie.joueurs);
 
-    // TODO : appliquer l'effet de la case ici (pièces, étoile...)
+    // On applique l'effet de la case, puis on prévient tout le monde
+    const effet = appliquerEffetCase(joueur);
+    io.to(code).emit('effet-case', { pseudo: joueur.pseudo, ...effet });
+    io.to(code).emit('positions', partie.joueurs);
 
     partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
   });
