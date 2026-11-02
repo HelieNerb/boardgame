@@ -25,6 +25,12 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  background: #5a6a94;
+  color: #9aa6c7;
+  cursor: not-allowed;
+}
+
 a {
   color: #ffd166;
   font-size: 1.3rem;
@@ -39,6 +45,11 @@ a {
 .message {
   color: #ffd166;
   min-height: 1.5rem;
+}
+
+.info-tour,
+.statut-tour {
+  color: #ffd166;
 }
 
 ul {
@@ -56,8 +67,7 @@ li {
 }
 
 .plateau {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.5rem;
   justify-content: center;
 }
@@ -76,6 +86,37 @@ li {
   text-transform: uppercase;
   opacity: 0.6;
   margin-bottom: 0.3rem;
+}
+
+.stats {
+  font-size: 1.6rem;
+  font-weight: bold;
+}
+
+.scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.score {
+  background: #3a4f86;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 1.1rem;
+}
+
+.score-actif {
+  background: #ffd166;
+  color: #1d2b4f;
+  font-weight: bold;
+}
+
+.pion-actif {
+  text-decoration: underline;
+  font-size: 1.1em;
 }
 
 .depart { background: #ddd; }

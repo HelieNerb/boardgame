@@ -116,15 +116,42 @@
         }
       }
 
+      // Calcule la place de chaque case sur le contour d'un rectangle (la "boucle").
+      // On part du coin haut-gauche et on tourne dans le sens des aiguilles d'une montre.
+      // Un rectangle de largeur L et hauteur H a 2L + 2H - 4 cases sur son contour,
+      // donc pour n cases : L = n/4 arrondi au-dessus + 1, puis H = n/2 + 2 - L.
+      // (Cela suppose un nombre de cases pair.)
+      function positionsBoucle(n) {
+        const largeur = Math.ceil(n / 4) + 1;
+        const hauteur = n / 2 + 2 - largeur;
+        const pos = []; // pos[i] = [ligne, colonne] de la case i (la numérotation CSS commence à 1)
+
+        for (let c = 1; c <= largeur; c++) pos.push([1, c]);             // haut : gauche → droite
+        for (let l = 2; l <= hauteur; l++) pos.push([l, largeur]);       // droite : haut → bas
+        for (let c = largeur - 1; c >= 1; c--) pos.push([hauteur, c]);   // bas : droite → gauche
+        for (let l = hauteur - 1; l >= 2; l--) pos.push([l, 1]);         // gauche : bas → haut
+
+        return { largeur, hauteur, pos };
+      }
+
       function afficherPlateau() {
         afficherScores();
 
         const div = document.getElementById('plateau');
         div.innerHTML = '';
 
+        // On dimensionne la grille CSS selon le nombre de cases
+        const boucle = positionsBoucle(plateau.length);
+        div.style.gridTemplateColumns = 'repeat(' + boucle.largeur + ', 120px)';
+        div.style.gridTemplateRows = 'repeat(' + boucle.hauteur + ', minmax(90px, auto))';
+
         plateau.forEach((type, i) => {
           const caseDiv = document.createElement('div');
           caseDiv.className = 'case ' + type;
+
+          // On place la case i à sa ligne / colonne sur le contour
+          caseDiv.style.gridRow = boucle.pos[i][0];
+          caseDiv.style.gridColumn = boucle.pos[i][1];
 
           const titre = document.createElement('small');
           titre.textContent = type;

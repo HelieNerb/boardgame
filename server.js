@@ -27,8 +27,10 @@ const LOCAL_IP = getLocalIp();
 const PORT = 3000;
 
 const PLATEAU = [
-  'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'etoile',
-  'bleue', 'rouge', 'rouge', 'bleue', 'bleue', 'etoile',
+  'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
+  'etoile', 'bleue', 'rouge', 'bleue', 'bleue', 'rouge',
+  'etoile', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
+  'etoile', 'bleue', 'rouge', 'bleue', 'rouge', 'bleue',
 ];
 
 // Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
