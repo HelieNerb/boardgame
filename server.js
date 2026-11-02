@@ -3,6 +3,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const os = require('os');
 const QRCode = require('qrcode'); // Librairie ajoutée
+const fs = require('fs');
+const path = require('path');
+const { demarrerQuiz } = require('./minijeux/quiz1');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +47,40 @@ const PERTE_CASE_ROUGE = 3;
 const PRIX_ETOILE = 10;
 
 const parties = new Map();
+
+// ─────────────────────────────────────────────
+//  Images du quiz : tous les JPG / PNG / WebP du dossier public/images/quiz1
+//  sont lus au démarrage du serveur (ajouter une image = la déposer dans le dossier)
+// ─────────────────────────────────────────────
+
+const DOSSIER_QUIZ1 = path.join('public', 'images', 'quiz1');
+
+function listerImages(dossier) {
+  try {
+    return fs.readdirSync(dossier).filter((f) => /\.(jpe?g|png|webp|gif)$/i.test(f));
+  } catch (err) {
+    return []; // dossier absent : le quiz sera simplement sauté
+  }
+}
+
+const IMAGES_QUIZ1 = listerImages(DOSSIER_QUIZ1);
+
+function melanger(tableau) {
+  const copie = [...tableau];
+  for (let i = copie.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copie[i], copie[j]] = [copie[j], copie[i]];
+  }
+  return copie;
+}
+
+// Pioche comme dans un paquet de cartes : pas de doublon tant que le paquet n'est pas vide
+function piocherImage(partie) {
+  if (!partie.imagesRestantes || partie.imagesRestantes.length === 0) {
+    partie.imagesRestantes = melanger(IMAGES_QUIZ1);
+  }
+  return partie.imagesRestantes.pop();
+}
 
 function genererCode() {
   const lettres = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -148,8 +185,29 @@ function finDeTour(code) {
   const partie = parties.get(code);
   if (!partie) return;
 
-  // TODO : lancer un mini-jeu ici, puis appeler tourSuivant(code) quand il est fini
-  tourSuivant(code);
+  // Aucune image dans le dossier : on saute le mini-jeu plutôt que de bloquer la partie
+  if (IMAGES_QUIZ1.length === 0) {
+    console.warn(`Aucune image dans ${DOSSIER_QUIZ1} : mini-jeu ignoré`);
+    tourSuivant(code);
+    return;
+  }
+
+  partie.phase = 'minijeu';
+  partie.miniJeu = demarrerQuiz({
+    io,
+    code,
+    partie,
+    image: piocherImage(partie),
+    envoyerAuJoueur: (pseudo, evenement, donnees) => {
+      const socketId = partie.sockets.get(pseudo);
+      if (socketId) io.to(socketId).emit(evenement, donnees);
+    },
+    // Le quiz est fini : on libère le mini-jeu et on enchaîne sur le tour suivant
+    onFin: () => {
+      partie.miniJeu = null;
+      tourSuivant(code);
+    },
+  });
 }
 
 function tourSuivant(code) {
@@ -186,6 +244,9 @@ io.on('connection', (socket) => {
       nbTours: NB_TOURS_DEFAUT,
       indexActif: 0,
       timer: null,
+      miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
+      imagesRestantes: null,  // le "paquet" d'images du quiz
+      sockets: new Map(),     // pseudo → id du socket, pour écrire à un seul joueur
     });
     socket.join(code);
     socket.data.codeHote = code;
@@ -233,6 +294,7 @@ io.on('connection', (socket) => {
     socket.join(code);
     socket.data.code = code;
     socket.data.pseudo = pseudo;
+    partie.sockets.set(pseudo, socket.id);
 
     socket.emit('rejoint', { code, pseudo });
     io.to(code).emit('liste-joueurs', partie.joueurs);
@@ -276,10 +338,24 @@ io.on('connection', (socket) => {
     partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
   });
 
+  // Messages du mini-jeu : server.js ne fait que les transmettre au quiz en cours
+  socket.on('quiz-reponse', (texte) => {
+    const partie = parties.get(socket.data.code);
+    if (partie && partie.miniJeu) partie.miniJeu.repondre(socket.data.pseudo, texte);
+  });
+
+  socket.on('quiz-vote', (id) => {
+    const partie = parties.get(socket.data.code);
+    if (partie && partie.miniJeu) partie.miniJeu.voter(socket.data.pseudo, Number(id));
+  });
+
   socket.on('disconnect', () => {
     if (socket.data.codeHote) {
       const partie = parties.get(socket.data.codeHote);
-      if (partie) clearTimeout(partie.timer);
+      if (partie) {
+        clearTimeout(partie.timer);
+        if (partie.miniJeu) partie.miniJeu.arreter();
+      }
       parties.delete(socket.data.codeHote);
       return;
     }
@@ -292,6 +368,7 @@ io.on('connection', (socket) => {
     if (index === -1) return;
 
     partie.joueurs.splice(index, 1);
+    partie.sockets.delete(socket.data.pseudo);
     io.to(code).emit('liste-joueurs', partie.joueurs);
     io.to(code).emit('positions', partie.joueurs);
 
@@ -300,6 +377,7 @@ io.on('connection', (socket) => {
     // Plus aucun joueur : on termine la partie
     if (partie.joueurs.length === 0) {
       clearTimeout(partie.timer);
+      if (partie.miniJeu) partie.miniJeu.arreter();
       finDePartie(code);
       return;
     }
@@ -314,6 +392,9 @@ io.on('connection', (socket) => {
       partie.indexActif--;
       joueurSuivant(code);
     }
+
+    // Si un mini-jeu est en cours, il ne doit plus attendre ce joueur
+    if (partie.miniJeu) partie.miniJeu.retirerJoueur(socket.data.pseudo);
   });
 });
 
