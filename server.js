@@ -31,6 +31,10 @@ const PLATEAU = [
   'bleue', 'rouge', 'rouge', 'bleue', 'bleue', 'etoile',
 ];
 
+// Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
+const NB_TOURS_DEFAUT = 5;
+const DELAI_FIN_TOUR_JOUEUR = 1500; // ms, le temps de voir le pion avancer
+
 const parties = new Map();
 
 function genererCode() {
@@ -45,11 +49,91 @@ function genererCode() {
   return code;
 }
 
+// ─────────────────────────────────────────────
+//  Gestion des tours
+//
+//  Un "tour" = tous les joueurs jouent chacun une fois.
+//  phase :
+//    'salon'       → la partie n'a pas commencé
+//    'attente-de'  → on attend que le joueur actif lance le dé
+//    'deplacement' → le dé est lancé, on laisse le temps de voir le résultat
+//    'fin'         → la partie est terminée
+// ─────────────────────────────────────────────
+
+function joueurActif(partie) {
+  return partie.joueurs[partie.indexActif];
+}
+
+// Démarre le tour du joueur à partie.indexActif
+function demarrerTourJoueur(code) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  partie.phase = 'attente-de';
+  io.to(code).emit('tour', {
+    tourActuel: partie.tourActuel,
+    nbTours: partie.nbTours,
+    joueurActif: joueurActif(partie).pseudo,
+  });
+}
+
+// Passe au joueur suivant (ou au tour suivant si tout le monde a joué)
+function joueurSuivant(code) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  partie.indexActif++;
+  if (partie.indexActif >= partie.joueurs.length) {
+    finDeTour(code);
+  } else {
+    demarrerTourJoueur(code);
+  }
+}
+
+// Tous les joueurs ont joué : c'est ici qu'on lancera le mini-jeu
+function finDeTour(code) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  // TODO : lancer un mini-jeu ici, puis appeler tourSuivant(code) quand il est fini
+  tourSuivant(code);
+}
+
+function tourSuivant(code) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  partie.tourActuel++;
+  partie.indexActif = 0;
+
+  if (partie.tourActuel > partie.nbTours) {
+    finDePartie(code);
+  } else {
+    demarrerTourJoueur(code);
+  }
+}
+
+function finDePartie(code) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  partie.phase = 'fin';
+  io.to(code).emit('fin-de-partie', { joueurs: partie.joueurs });
+}
+
 io.on('connection', (socket) => {
   // L'écran principal crée une partie
   socket.on('creer-partie', async () => {
     const code = genererCode();
-    parties.set(code, { joueurs: [], demarree: false });
+    parties.set(code, {
+      joueurs: [],
+      demarree: false,
+      phase: 'salon',
+      tourActuel: 0,
+      nbTours: NB_TOURS_DEFAUT,
+      indexActif: 0,
+      timer: null,
+    });
     socket.join(code);
     socket.data.codeHote = code;
 
@@ -104,36 +188,76 @@ io.on('connection', (socket) => {
   socket.on('demarrer', () => {
     const code = socket.data.codeHote;
     const partie = parties.get(code);
-    if (!partie || partie.joueurs.length === 0) return;
+    if (!partie || partie.demarree || partie.joueurs.length === 0) return;
 
     partie.demarree = true;
+    partie.tourActuel = 1;
+    partie.indexActif = 0;
+
     io.to(code).emit('partie-demarree', { plateau: PLATEAU, joueurs: partie.joueurs });
+    demarrerTourJoueur(code);
   });
 
   socket.on('lancer-de', () => {
-    const partie = parties.get(socket.data.code);
+    const code = socket.data.code;
+    const partie = parties.get(code);
     if (!partie || !partie.demarree) return;
 
-    const joueur = partie.joueurs.find((j) => j.pseudo === socket.data.pseudo);
-    if (!joueur) return;
+    // Seul le joueur actif peut lancer le dé, et une seule fois par tour
+    if (partie.phase !== 'attente-de') return;
+    const joueur = joueurActif(partie);
+    if (!joueur || joueur.pseudo !== socket.data.pseudo) return;
+
+    partie.phase = 'deplacement';
 
     const de = Math.floor(Math.random() * 6) + 1;
     joueur.position = (joueur.position + de) % PLATEAU.length;
 
     socket.emit('resultat-de', de);
-    io.to(socket.data.code).emit('positions', partie.joueurs);
+    io.to(code).emit('positions', partie.joueurs);
+
+    // TODO : appliquer l'effet de la case ici (pièces, étoile...)
+
+    partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
   });
 
   socket.on('disconnect', () => {
     if (socket.data.codeHote) {
+      const partie = parties.get(socket.data.codeHote);
+      if (partie) clearTimeout(partie.timer);
       parties.delete(socket.data.codeHote);
       return;
     }
-    const partie = parties.get(socket.data.code);
-    if (partie) {
-      partie.joueurs = partie.joueurs.filter((j) => j.pseudo !== socket.data.pseudo);
-      io.to(socket.data.code).emit('liste-joueurs', partie.joueurs);
-      io.to(socket.data.code).emit('positions', partie.joueurs);
+
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    if (!partie) return;
+
+    const index = partie.joueurs.findIndex((j) => j.pseudo === socket.data.pseudo);
+    if (index === -1) return;
+
+    partie.joueurs.splice(index, 1);
+    io.to(code).emit('liste-joueurs', partie.joueurs);
+    io.to(code).emit('positions', partie.joueurs);
+
+    if (!partie.demarree || partie.phase === 'fin') return;
+
+    // Plus aucun joueur : on termine la partie
+    if (partie.joueurs.length === 0) {
+      clearTimeout(partie.timer);
+      finDePartie(code);
+      return;
+    }
+
+    if (index < partie.indexActif) {
+      // Un joueur déjà passé est parti : tout le monde est décalé d'un cran
+      partie.indexActif--;
+    } else if (index === partie.indexActif) {
+      // Le joueur actif est parti : le suivant prend sa place dans le tableau,
+      // donc on recule d'un cran avant de passer au suivant
+      clearTimeout(partie.timer);
+      partie.indexActif--;
+      joueurSuivant(code);
     }
   });
 });

@@ -16,13 +16,15 @@
     <p id="message" class="message"></p>
 
     <div id="jeu" hidden>
-      <button onclick="socket.emit('lancer-de')">Lancer le dé</button>
+      <p id="statut-tour" class="statut-tour"></p>
+      <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
       <p id="de"></p>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
+      let monPseudo = null;
 
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
@@ -41,7 +43,14 @@
         });
       }
 
+      function lancerDe() {
+        // On désactive tout de suite : un seul lancer par tour
+        document.getElementById('bouton-de').disabled = true;
+        socket.emit('lancer-de');
+      }
+
       socket.on('rejoint', ({ code, pseudo }) => {
+        monPseudo = pseudo;
         document.getElementById('formulaire').hidden = true;
         document.getElementById('message').textContent =
           'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
@@ -56,8 +65,22 @@
         document.getElementById('jeu').hidden = false;
       });
 
+      socket.on('tour', ({ tourActuel, nbTours, joueurActif }) => {
+        const monTour = joueurActif === monPseudo;
+        document.getElementById('bouton-de').disabled = !monTour;
+        document.getElementById('de').textContent = '';
+        document.getElementById('statut-tour').textContent = monTour
+          ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
+          : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
+      });
+
       socket.on('resultat-de', (de) => {
         document.getElementById('de').textContent = 'Tu as fait ' + de;
+      });
+
+      socket.on('fin-de-partie', () => {
+        document.getElementById('bouton-de').disabled = true;
+        document.getElementById('statut-tour').textContent = 'La partie est terminée !';
       });
     </script>
   </body>

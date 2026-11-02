@@ -24,13 +24,21 @@
 
     <div id="jeu" hidden>
       <h1>Plateau</h1>
+      <h2 id="info-tour" class="info-tour"></h2>
       <div id="plateau" class="plateau"></div>
+    </div>
+
+    <div id="fin" hidden>
+      <h1>Fin de la partie 🎉</h1>
+      <div id="resultats"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
       let plateau = [];
+      let joueurs = [];
+      let pseudoActif = null;
 
       socket.emit('creer-partie');
 
@@ -44,26 +52,54 @@
         }
       });
 
-      socket.on('liste-joueurs', (joueurs) => {
-        const liste = document.getElementById('liste');
-        liste.innerHTML = '';
-        for (const joueur of joueurs) {
+      socket.on('liste-joueurs', (liste) => {
+        joueurs = liste;
+        const ul = document.getElementById('liste');
+        ul.innerHTML = '';
+        for (const joueur of liste) {
           const li = document.createElement('li');
           li.textContent = joueur.pseudo;
-          liste.appendChild(li);
+          ul.appendChild(li);
         }
       });
 
       socket.on('partie-demarree', (donnees) => {
         plateau = donnees.plateau;
+        joueurs = donnees.joueurs;
         document.getElementById('salon').hidden = true;
         document.getElementById('jeu').hidden = false;
-        afficherPlateau(donnees.joueurs);
+        afficherPlateau();
       });
 
-      socket.on('positions', (joueurs) => afficherPlateau(joueurs));
+      socket.on('tour', ({ tourActuel, nbTours, joueurActif }) => {
+        pseudoActif = joueurActif;
+        document.getElementById('info-tour').textContent =
+          'Tour ' + tourActuel + ' / ' + nbTours + ' — C\'est à ' + joueurActif + ' de jouer !';
+        afficherPlateau();
+      });
 
-      function afficherPlateau(joueurs) {
+      socket.on('positions', (liste) => {
+        joueurs = liste;
+        afficherPlateau();
+      });
+
+      socket.on('fin-de-partie', (donnees) => {
+        document.getElementById('jeu').hidden = true;
+        document.getElementById('fin').hidden = false;
+
+        // Pour l'instant : classement provisoire par position sur le plateau
+        // (à remplacer par étoiles puis pièces quand ils existeront)
+        const resultats = document.getElementById('resultats');
+        resultats.innerHTML = '';
+        const classement = [...donnees.joueurs].sort((a, b) => b.position - a.position);
+        classement.forEach((joueur, i) => {
+          const p = document.createElement('p');
+          p.textContent = (i + 1) + '. ' + joueur.pseudo;
+          resultats.appendChild(p);
+        });
+      });
+
+      function afficherPlateau() {
         const div = document.getElementById('plateau');
         div.innerHTML = '';
 
@@ -79,6 +115,9 @@
             if (joueur.position === i) {
               const pion = document.createElement('div');
               pion.textContent = joueur.pseudo;
+              if (joueur.pseudo === pseudoActif) {
+                pion.className = 'pion-actif';
+              }
               caseDiv.appendChild(pion);
             }
           }
