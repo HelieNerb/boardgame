@@ -483,7 +483,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    partie.joueurs.push({ pseudo, position: 0, pieces: PIECES_DEPART, etoiles: 0, connecte: true });
+    partie.joueurs.push({
+      pseudo,
+      numero: partie.joueurs.length + 1,
+      position: 0,
+      pieces: PIECES_DEPART,
+      etoiles: 0,
+      connecte: true
+    });
     socket.join(code);
     socket.data.code = code;
     socket.data.pseudo = pseudo;
