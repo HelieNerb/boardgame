@@ -22,6 +22,13 @@
       <p id="de"></p>
     </div>
 
+    <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
+      <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
+      <p id="texte-etoile"></p>
+      <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
+      <button onclick="choisirEtoile(false)">Renoncer</button>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
@@ -50,6 +57,11 @@
         socket.emit('lancer-de');
       }
 
+      function choisirEtoile(acheter) {
+        document.getElementById('choix-etoile').hidden = true;
+        socket.emit('choix-etoile', { acheter });
+      }
+
       socket.on('rejoint', ({ code, pseudo }) => {
         monPseudo = pseudo;
         document.getElementById('formulaire').hidden = true;
@@ -67,6 +79,7 @@
       });
 
       socket.on('tour', ({ tourActuel, nbTours, joueurActif }) => {
+        document.getElementById('choix-etoile').hidden = true;
         const monTour = joueurActif === monPseudo;
         document.getElementById('bouton-de').disabled = !monTour;
         document.getElementById('de').textContent = '';
@@ -77,6 +90,20 @@
 
       socket.on('resultat-de', (de) => {
         document.getElementById('de').textContent = 'Tu as fait ' + de;
+      });
+
+      socket.on('demande-achat-etoile', ({ pseudo, pieces, prix, pasRestants }) => {
+        if (pseudo !== monPseudo) return;
+
+        const peutAcheter = pieces >= prix;
+        document.getElementById('texte-etoile').textContent = peutAcheter
+          ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
+          : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
+        document.getElementById('acheter-etoile').disabled = !peutAcheter;
+        document.getElementById('choix-etoile').hidden = false;
+        document.getElementById('de').textContent = pasRestants > 1
+          ? 'Déplacement en pause : ' + (pasRestants - 1) + ' case(s) restante(s) après ton choix.'
+          : 'Déplacement en pause sur la dernière case.';
       });
 
       // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné

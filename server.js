@@ -61,8 +61,10 @@ function plateauAvecEtoile(partie) {
     index === partie.etoilePosition ? 'etoile' : type
   );
 }
-// Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
-const NB_TOURS_DEFAUT = 5;
+// Paramètres de partie
+const NB_TOURS_DEFAUT = 15;
+const NB_TOURS_MIN = 5;
+const NB_TOURS_MAX = 50;
 const DELAI_FIN_TOUR_JOUEUR = 2500; // ms, le temps de voir le pion avancer et l'effet de la case
 
 // Règles de l'économie du jeu
@@ -169,21 +171,37 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
   // Avancer d'une seule case
   joueur.position = (joueur.position + 1) % PLATEAU.length;
 
-  // Appliquer l'effet de la case
-  const effet = appliquerEffetCase(partie, joueur);
-
-  io.to(code).emit('effet-case', {
-    pseudo: joueur.pseudo,
-    ...effet
-  });
-
-  // Si une étoile est achetée, on la déplace immédiatement
-  if (effet.achatEtoile) {
-    partie.etoilePosition = choisirPositionEtoile(partie);
-
-    io.to(code).emit('plateau-mis-a-jour', {
-      plateau: plateauAvecEtoile(partie)
+  // L'étoile interrompt le déplacement jusqu'au choix du joueur.
+  if (joueur.position === partie.etoilePosition) {
+    partie.phase = 'choix-etoile';
+    partie.deplacementSuspendu = { pseudo, pasRestants };
+    io.to(code).emit('positions', partie.joueurs);
+    io.to(code).emit('demande-achat-etoile', {
+      pseudo,
+      pieces: joueur.pieces,
+      prix: PRIX_ETOILE,
+      pasRestants
     });
+    return;
+  }
+
+  // L'effet s'applique uniquement sur la case d'arrivée, au dernier pas.
+  if (pasRestants === 1) {
+    const effet = appliquerEffetCase(partie, joueur);
+
+    io.to(code).emit('effet-case', {
+      pseudo: joueur.pseudo,
+      ...effet
+    });
+
+    // Si une étoile est achetée, on la déplace immédiatement.
+    if (effet.achatEtoile) {
+      partie.etoilePosition = choisirPositionEtoile(partie);
+
+      io.to(code).emit('plateau-mis-a-jour', {
+        plateau: plateauAvecEtoile(partie)
+      });
+    }
   }
 
   // Actualiser les positions et les scores
@@ -276,6 +294,7 @@ io.on('connection', (socket) => {
       nbTours: NB_TOURS_DEFAUT,
       indexActif: 0,
       etoilePosition: null,
+      deplacementSuspendu: null,
       timer: null,
     });
     const partie = parties.get(code);
@@ -332,10 +351,16 @@ io.on('connection', (socket) => {
     io.to(code).emit('liste-joueurs', partie.joueurs);
   });
 
-  socket.on('demarrer', () => {
+  socket.on('demarrer', ({ nbTours } = {}) => {
     const code = socket.data.codeHote;
     const partie = parties.get(code);
     if (!partie || partie.demarree || partie.joueurs.length === 0) return;
+
+    const nbToursChoisi = Number(nbTours);
+    partie.nbTours = Number.isInteger(nbToursChoisi) &&
+      nbToursChoisi >= NB_TOURS_MIN && nbToursChoisi <= NB_TOURS_MAX
+      ? nbToursChoisi
+      : NB_TOURS_DEFAUT;
 
     partie.demarree = true;
     partie.tourActuel = 1;
@@ -367,6 +392,54 @@ io.on('connection', (socket) => {
 
     // Le déplacement et les effets sont traités case par case.
     deplacerPasAPas(code, joueur.pseudo, de);
+  });
+
+  socket.on('choix-etoile', ({ acheter } = {}) => {
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    const suspendu = partie && partie.deplacementSuspendu;
+    const joueur = partie && joueurActif(partie);
+
+    if (!partie || partie.phase !== 'choix-etoile' || !suspendu ||
+        !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
+
+    const achatAccepte = acheter === true && joueur.pieces >= PRIX_ETOILE;
+    if (achatAccepte) {
+      joueur.pieces -= PRIX_ETOILE;
+      joueur.etoiles++;
+      partie.etoilePosition = choisirPositionEtoile(partie);
+
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'etoile',
+        achatEtoile: true,
+        message: `${joueur.pseudo} achète une étoile pour ${PRIX_ETOILE} pièces ! ⭐`
+      });
+      io.to(code).emit('plateau-mis-a-jour', {
+        plateau: plateauAvecEtoile(partie)
+      });
+    } else {
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'etoile',
+        achatEtoile: false,
+        message: `${joueur.pseudo} renonce à l'étoile.`
+      });
+    }
+
+    partie.deplacementSuspendu = null;
+    partie.phase = 'deplacement';
+    io.to(code).emit('positions', partie.joueurs);
+
+    if (suspendu.pasRestants > 1) {
+      partie.timer = setTimeout(() => {
+        deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants - 1);
+      }, 500);
+    } else {
+      partie.timer = setTimeout(() => {
+        joueurSuivant(code);
+      }, DELAI_FIN_TOUR_JOUEUR);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -404,6 +477,7 @@ io.on('connection', (socket) => {
       // Le joueur actif est parti : le suivant prend sa place dans le tableau,
       // donc on recule d'un cran avant de passer au suivant
       clearTimeout(partie.timer);
+      partie.deplacementSuspendu = null;
       partie.indexActif--;
       joueurSuivant(code);
     }

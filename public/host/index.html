@@ -19,7 +19,10 @@
 
       <h3>Joueurs</h3>
       <ul id="liste"></ul>
-      <button onclick="socket.emit('demarrer')">Démarrer la partie</button>
+      <label for="nb-tours">Nombre de tours</label><br>
+      <input id="nb-tours" type="number" min="5" max="50" step="1" value="15">
+      <p id="estimation-duree" class="message" aria-live="polite"></p>
+      <button onclick="demarrerPartie()">Démarrer la partie</button>
     </div>
 
     <div id="jeu" hidden>
@@ -41,6 +44,33 @@
       let plateau = [];
       let joueurs = [];
       let pseudoActif = null;
+
+      const champNbTours = document.getElementById('nb-tours');
+      champNbTours.addEventListener('input', afficherEstimationDuree);
+
+      function afficherEstimationDuree() {
+        const nbTours = Number(champNbTours.value);
+        const estimation = document.getElementById('estimation-duree');
+
+        if (!Number.isInteger(nbTours) || nbTours < 5 || nbTours > 50) {
+          estimation.textContent = 'Choisis entre 5 et 50 tours.';
+          return;
+        }
+
+        // Repère indicatif : 15 tours correspondent à environ 20 minutes.
+        const minutes = Math.round(nbTours * 80 / 60);
+        const duree = minutes < 60
+          ? minutes + ' min'
+          : Math.floor(minutes / 60) + ' h' + (minutes % 60 ? ' ' + (minutes % 60) + ' min' : '');
+        estimation.textContent = 'Durée estimée : ' + nbTours + ' tours ≈ ' + duree;
+      }
+
+      function demarrerPartie() {
+        if (!champNbTours.reportValidity()) return;
+        socket.emit('demarrer', { nbTours: Number(champNbTours.value) });
+      }
+
+      afficherEstimationDuree();
 
       socket.emit('creer-partie');
 
@@ -83,6 +113,11 @@
 
       socket.on('positions', (liste) => {
         joueurs = liste;
+        afficherPlateau();
+      });
+
+      socket.on('plateau-mis-a-jour', ({ plateau: nouveauPlateau }) => {
+        plateau = nouveauPlateau;
         afficherPlateau();
       });
 
