@@ -41,6 +41,9 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
 
   let phase = 'ecriture';
   let timer = null;
+  let finPhase = 0;            // heure (ms) à laquelle la phase en cours se termine
+  let dernierResultat = null;  // gardé pour le renvoyer à un joueur qui se reconnecte
+  const urlImage = '/images/quiz1/' + encodeURIComponent(image);
   const reponses = new Map(); // pseudo de l'auteur → texte
   const votes = new Map();    // pseudo du votant → id de la proposition choisie
   let propositions = [];      // [{ id, texte, auteur }]
@@ -52,7 +55,13 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
   // Un seul minuteur à la fois : on annule l'ancien avant d'en programmer un nouveau
   function programmer(secondes, fonction) {
     clearTimeout(timer);
+    finPhase = Date.now() + secondes * 1000;
     timer = setTimeout(fonction, secondes * 1000);
+  }
+
+  // Temps restant dans la phase en cours (pour un joueur qui revient en cours de route)
+  function resteSecondes() {
+    return Math.max(1, Math.ceil((finPhase - Date.now()) / 1000));
   }
 
   function estJoueur(pseudo) {
@@ -70,10 +79,7 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
   // ── Phase 1 : écriture ──────────────────────
 
   function demarrerEcriture() {
-    emettre('quiz-ecriture', {
-      image: '/images/quiz1/' + encodeURIComponent(image),
-      duree: d.ecriture,
-    });
+    emettre('quiz-ecriture', { image: urlImage, duree: d.ecriture });
     emettreProgression();
     programmer(d.ecriture, demarrerVote);
   }
@@ -158,12 +164,13 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
       if (joueur) joueur.pieces += PIECES_GAGNANT;
     }
 
-    emettre('quiz-resultats', {
+    dernierResultat = {
       resultats: decomptes.sort((a, b) => b.votes - a.votes),
       gagnants: gagnants.map((g) => g.auteur),
       pieces: PIECES_GAGNANT,
       assezDeReponses: propositions.length >= 2,
-    });
+    };
+    emettre('quiz-resultats', dernierResultat);
     emettre('positions', partie.joueurs);
 
     programmer(d.resultats, terminer);
@@ -193,6 +200,30 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
     }
   }
 
+  // Un joueur se reconnecte : on lui renvoie ce qu'il doit voir MAINTENANT,
+  // avec le temps restant (pas la durée complète) et en sachant s'il a déjà joué.
+  function renvoyerEtat(pseudo) {
+    if (!estJoueur(pseudo)) return;
+
+    if (phase === 'ecriture') {
+      envoyerAuJoueur(pseudo, 'quiz-ecriture', {
+        image: urlImage,
+        duree: resteSecondes(),
+        dejaRepondu: reponses.has(pseudo),
+      });
+    } else if (phase === 'vote') {
+      const mienne = propositions.find((p) => p.auteur === pseudo);
+      envoyerAuJoueur(pseudo, 'quiz-mon-id', { id: mienne ? mienne.id : null });
+      envoyerAuJoueur(pseudo, 'quiz-vote', {
+        propositions: propositions.map(({ id, texte }) => ({ id, texte })),
+        duree: resteSecondes(),
+        dejaVote: votes.has(pseudo),
+      });
+    } else if (phase === 'resultat' && dernierResultat) {
+      envoyerAuJoueur(pseudo, 'quiz-resultats', dernierResultat);
+    }
+  }
+
   // La partie est détruite : on coupe les minuteurs
   function arreter() {
     phase = 'fini';
@@ -201,7 +232,7 @@ function demarrerQuiz({ io, code, partie, image, envoyerAuJoueur, onFin, durees 
 
   demarrerEcriture();
 
-  return { repondre, voter, retirerJoueur, arreter };
+  return { repondre, voter, retirerJoueur, renvoyerEtat, arreter };
 }
 
 module.exports = { demarrerQuiz };

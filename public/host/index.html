@@ -68,7 +68,7 @@
         ul.innerHTML = '';
         for (const joueur of liste) {
           const li = document.createElement('li');
-          li.textContent = joueur.pseudo;
+          li.textContent = joueur.pseudo + (joueur.connecte === false ? ' 💤' : '');
           ul.appendChild(li);
         }
       });
@@ -195,8 +195,11 @@
         div.innerHTML = '';
         for (const joueur of joueurs) {
           const carte = document.createElement('div');
-          carte.className = 'score' + (joueur.pseudo === pseudoActif ? ' score-actif' : '');
-          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐';
+          carte.className = 'score'
+            + (joueur.pseudo === pseudoActif ? ' score-actif' : '')
+            + (joueur.connecte === false ? ' score-deconnecte' : '');
+          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
+            + (joueur.connecte === false ? ' 💤' : '');
           div.appendChild(carte);
         }
       }

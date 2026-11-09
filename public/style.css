@@ -148,6 +148,10 @@ li {
   white-space: normal;
 }
 
+.score-deconnecte {
+  opacity: 0.5;
+}
+
 .pion-actif {
   text-decoration: underline;
   font-size: 1.1em;

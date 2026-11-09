@@ -46,6 +46,67 @@
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
 
+      // ── Session : de quoi se reconnecter après une coupure ──
+      // On garde { code, pseudo, token } dans le localStorage du téléphone.
+      // (try/catch : le localStorage peut être bloqué, par exemple en navigation privée)
+      const CLE_SESSION = 'mayo-party-session';
+
+      function lireSession() {
+        try { return JSON.parse(localStorage.getItem(CLE_SESSION)); } catch (e) { return null; }
+      }
+      function sauverSession(session) {
+        try { localStorage.setItem(CLE_SESSION, JSON.stringify(session)); } catch (e) {}
+      }
+      function effacerSession() {
+        try { localStorage.removeItem(CLE_SESSION); } catch (e) {}
+      }
+
+      // 'connect' se déclenche à l'ouverture de la page ET à chaque reconnexion automatique
+      // de Socket.IO : dans les deux cas, si on a une session, on demande à retrouver sa place.
+      socket.on('connect', () => {
+        const session = lireSession();
+        if (!session) return;
+
+        // Le QR code d'une AUTRE partie : l'ancienne session ne sert plus à rien
+        if (codeFromUrl && codeFromUrl.toUpperCase() !== session.code) {
+          effacerSession();
+          return;
+        }
+        socket.emit('reconnecter', { code: session.code, token: session.token });
+      });
+
+      socket.on('disconnect', () => {
+        document.getElementById('message').textContent = 'Connexion perdue... reconnexion en cours';
+      });
+
+      socket.on('reconnecte', ({ code, pseudo, demarree, joueurs }) => {
+        monPseudo = pseudo;
+        document.getElementById('formulaire').hidden = true;
+        document.getElementById('message').textContent = demarree
+          ? 'Reconnecté, content de te revoir ' + pseudo + ' !'
+          : 'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
+
+        if (demarree) {
+          document.getElementById('jeu').hidden = false;
+          afficherStats(joueurs);
+        }
+      });
+
+      // La partie n'existe plus, ou le joueur en a été retiré (trop longtemps absent)
+      socket.on('reconnexion-refusee', () => {
+        const dejaAffiche = document.getElementById('formulaire').hidden;
+        effacerSession();
+        if (!dejaAffiche) {
+          // L'écran montrait la partie : on revient au formulaire avec une explication
+          monPseudo = null;
+          document.getElementById('formulaire').hidden = false;
+          document.getElementById('jeu').hidden = true;
+          document.getElementById('quiz').hidden = true;
+          document.getElementById('message').textContent =
+            'Tu n\'es plus dans cette partie. Tu peux la rejoindre à nouveau si elle n\'a pas commencé.';
+        }
+      });
+
       if (codeFromUrl) {
         const champCode = document.getElementById('code');
         champCode.value = codeFromUrl.toUpperCase();
@@ -66,8 +127,9 @@
         socket.emit('lancer-de');
       }
 
-      socket.on('rejoint', ({ code, pseudo }) => {
+      socket.on('rejoint', ({ code, pseudo, token }) => {
         monPseudo = pseudo;
+        sauverSession({ code, pseudo, token });
         document.getElementById('formulaire').hidden = true;
         document.getElementById('message').textContent =
           'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
@@ -82,9 +144,10 @@
         document.getElementById('jeu').hidden = false;
       });
 
-      socket.on('tour', ({ tourActuel, nbTours, joueurActif }) => {
+      socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
         const monTour = joueurActif === monPseudo;
-        document.getElementById('bouton-de').disabled = !monTour;
+        // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
+        document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
         document.getElementById('de').textContent = '';
         document.getElementById('statut-tour').textContent = monTour
           ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
@@ -102,21 +165,17 @@
         }
       });
 
-      // À chaque mise à jour, on retrouve ses propres compteurs dans la liste
-      socket.on('positions', (joueurs) => {
+      // On retrouve ses propres compteurs dans la liste de tous les joueurs
+      function afficherStats(joueurs) {
         const moi = joueurs.find((j) => j.pseudo === monPseudo);
         if (moi) {
           document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
         }
-      });
+      }
 
-      // 'partie-demarree' contient aussi la liste : on affiche les compteurs dès le début
-      socket.on('partie-demarree', ({ joueurs }) => {
-        const moi = joueurs.find((j) => j.pseudo === monPseudo);
-        if (moi) {
-          document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
-        }
-      });
+      // À chaque mise à jour des positions, et dès le début de la partie
+      socket.on('positions', afficherStats);
+      socket.on('partie-demarree', ({ joueurs }) => afficherStats(joueurs));
 
       // ── Mini-jeu : quiz du titre drôle ──────────
 
@@ -139,12 +198,13 @@
         document.getElementById('quiz-envoyer').disabled = true;
       }
 
-      socket.on('quiz-ecriture', () => {
+      socket.on('quiz-ecriture', ({ dejaRepondu } = {}) => {
         const champ = document.getElementById('quiz-texte');
         champ.value = '';
-        champ.disabled = false;
-        document.getElementById('quiz-envoyer').disabled = false;
-        document.getElementById('quiz-message').textContent = '';
+        champ.disabled = !!dejaRepondu;
+        document.getElementById('quiz-envoyer').disabled = !!dejaRepondu;
+        document.getElementById('quiz-message').textContent =
+          dejaRepondu ? 'Titre envoyé ! On attend les autres...' : '';
         monIdQuiz = null;
         afficherQuiz('ecriture');
       });
@@ -157,9 +217,9 @@
         monIdQuiz = id;
       });
 
-      socket.on('quiz-vote', ({ propositions }) => {
+      socket.on('quiz-vote', ({ propositions, dejaVote }) => {
         afficherQuiz('vote');
-        document.getElementById('quiz-message').textContent = '';
+        document.getElementById('quiz-message').textContent = dejaVote ? 'Vote enregistré !' : '';
         const div = document.getElementById('quiz-choix');
         div.innerHTML = '';
         for (const p of propositions) {
@@ -167,6 +227,7 @@
           const bouton = document.createElement('button');
           bouton.className = 'choix';
           bouton.textContent = p.texte;
+          bouton.disabled = !!dejaVote; // déjà voté avant la coupure : on ne peut pas revoter
           bouton.onclick = () => {
             socket.emit('quiz-vote', p.id);
             for (const b of div.querySelectorAll('button')) b.disabled = true;

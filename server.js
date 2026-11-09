@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const os = require('os');
 const QRCode = require('qrcode'); // Librairie ajoutée
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { demarrerQuiz } = require('./minijeux/quiz');
@@ -39,6 +40,11 @@ const PLATEAU = [
 // Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
 const NB_TOURS_DEFAUT = 5;
 const DELAI_FIN_TOUR_JOUEUR = 2500; // ms, le temps de voir le pion avancer et l'effet de la case
+
+// Reconnexion : un joueur déconnecté garde sa place pendant ce délai, puis il est retiré
+const DELAI_RECONNEXION = 60000; // ms
+// Si c'est à un joueur déconnecté de jouer, on passe son tour (sans le retirer) après ce délai
+const DELAI_TOUR_ABSENT = 15000; // ms
 
 // Règles de l'économie du jeu
 const PIECES_DEPART = 5;
@@ -154,17 +160,38 @@ function classement(partie) {
   return [...partie.joueurs].sort((a, b) => b.etoiles - a.etoiles || b.pieces - a.pieces);
 }
 
+// Les infos du tour en cours, envoyées à tout le monde (ou à un joueur qui se reconnecte).
+// peutLancer = vrai tant que le joueur actif n'a pas encore lancé le dé.
+function infosTour(partie) {
+  return {
+    tourActuel: partie.tourActuel,
+    nbTours: partie.nbTours,
+    joueurActif: joueurActif(partie).pseudo,
+    peutLancer: partie.phase === 'attente-de',
+  };
+}
+
+// Si le joueur dont c'est le tour est déconnecté, on ne bloque pas la partie :
+// au bout de DELAI_TOUR_ABSENT son tour est sauté. S'il est (re)connecté, on annule ce minuteur.
+function surveillerJoueurActif(code) {
+  const partie = parties.get(code);
+  if (!partie || partie.phase !== 'attente-de') return;
+
+  clearTimeout(partie.timer);
+  const joueur = joueurActif(partie);
+  if (joueur && !joueur.connecte) {
+    partie.timer = setTimeout(() => joueurSuivant(code), DELAI_TOUR_ABSENT);
+  }
+}
+
 // Démarre le tour du joueur à partie.indexActif
 function demarrerTourJoueur(code) {
   const partie = parties.get(code);
   if (!partie) return;
 
   partie.phase = 'attente-de';
-  io.to(code).emit('tour', {
-    tourActuel: partie.tourActuel,
-    nbTours: partie.nbTours,
-    joueurActif: joueurActif(partie).pseudo,
-  });
+  io.to(code).emit('tour', infosTour(partie));
+  surveillerJoueurActif(code);
 }
 
 // Passe au joueur suivant (ou au tour suivant si tout le monde a joué)
@@ -232,6 +259,57 @@ function finDePartie(code) {
   io.to(code).emit('fin-de-partie', { classement: classement(partie) });
 }
 
+// ─────────────────────────────────────────────
+//  Retrait définitif d'un joueur
+//
+//  Appelée quand un joueur est resté déconnecté plus de DELAI_RECONNEXION
+//  (ou quand l'hôte démarre la partie sans lui). C'est l'ancienne logique
+//  de la déconnexion : on le sort de la liste et on garde les tours cohérents.
+// ─────────────────────────────────────────────
+
+function retirerJoueur(code, pseudo) {
+  const partie = parties.get(code);
+  if (!partie) return;
+
+  clearTimeout(partie.abandons.get(pseudo));
+  partie.abandons.delete(pseudo);
+  partie.sockets.delete(pseudo);
+  for (const [token, p] of partie.tokens) {
+    if (p === pseudo) partie.tokens.delete(token);
+  }
+
+  const index = partie.joueurs.findIndex((j) => j.pseudo === pseudo);
+  if (index === -1) return;
+
+  partie.joueurs.splice(index, 1);
+  io.to(code).emit('liste-joueurs', partie.joueurs);
+  io.to(code).emit('positions', partie.joueurs);
+
+  if (!partie.demarree || partie.phase === 'fin') return;
+
+  // Plus aucun joueur : on termine la partie
+  if (partie.joueurs.length === 0) {
+    clearTimeout(partie.timer);
+    if (partie.miniJeu) partie.miniJeu.arreter();
+    finDePartie(code);
+    return;
+  }
+
+  if (index < partie.indexActif) {
+    // Un joueur déjà passé est parti : tout le monde est décalé d'un cran
+    partie.indexActif--;
+  } else if (index === partie.indexActif) {
+    // Le joueur actif est parti : le suivant prend sa place dans le tableau,
+    // donc on recule d'un cran avant de passer au suivant
+    clearTimeout(partie.timer);
+    partie.indexActif--;
+    joueurSuivant(code);
+  }
+
+  // Si un mini-jeu est en cours, il ne doit plus attendre ce joueur
+  if (partie.miniJeu) partie.miniJeu.retirerJoueur(pseudo);
+}
+
 io.on('connection', (socket) => {
   // L'écran principal crée une partie
   socket.on('creer-partie', async () => {
@@ -247,6 +325,8 @@ io.on('connection', (socket) => {
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
       imagesRestantes: null,  // le "paquet" d'images du quiz
       sockets: new Map(),     // pseudo → id du socket, pour écrire à un seul joueur
+      tokens: new Map(),      // token secret → pseudo (jamais envoyé aux autres écrans)
+      abandons: new Map(),    // pseudo → minuteur avant retrait définitif
     });
     socket.join(code);
     socket.data.codeHote = code;
@@ -290,20 +370,81 @@ io.on('connection', (socket) => {
       return;
     }
 
-    partie.joueurs.push({ pseudo, position: 0, pieces: PIECES_DEPART, etoiles: 0 });
+    partie.joueurs.push({ pseudo, position: 0, pieces: PIECES_DEPART, etoiles: 0, connecte: true });
     socket.join(code);
     socket.data.code = code;
     socket.data.pseudo = pseudo;
     partie.sockets.set(pseudo, socket.id);
 
-    socket.emit('rejoint', { code, pseudo });
+    // Le token prouve que c'est bien ce joueur qui revient. Il n'est envoyé qu'à lui,
+    // et n'est PAS stocké dans l'objet joueur (qui, lui, est diffusé à tous les écrans).
+    const token = crypto.randomUUID();
+    partie.tokens.set(token, pseudo);
+
+    socket.emit('rejoint', { code, pseudo, token });
     io.to(code).emit('liste-joueurs', partie.joueurs);
+  });
+
+  // Un joueur dont le socket a été coupé (écran verrouillé, rechargement, réseau...) revient
+  socket.on('reconnecter', ({ code, token } = {}) => {
+    code = String(code ?? '').trim().toUpperCase();
+    const partie = parties.get(code);
+    const pseudo = partie && partie.tokens.get(String(token));
+    const joueur = pseudo && partie.joueurs.find((j) => j.pseudo === pseudo);
+
+    if (!joueur) {
+      socket.emit('reconnexion-refusee');
+      return;
+    }
+
+    // On enregistre le nouveau socket AVANT de fermer l'ancien : quand l'ancien enverra son
+    // 'disconnect', le serveur verra que ce n'est plus le socket du joueur et l'ignorera.
+    const ancienSocketId = partie.sockets.get(pseudo);
+    partie.sockets.set(pseudo, socket.id);
+    if (ancienSocketId && ancienSocketId !== socket.id) {
+      io.sockets.sockets.get(ancienSocketId)?.disconnect(true);
+    }
+
+    clearTimeout(partie.abandons.get(pseudo));
+    partie.abandons.delete(pseudo);
+    joueur.connecte = true;
+
+    socket.join(code);
+    socket.data.code = code;
+    socket.data.pseudo = pseudo;
+
+    // Ce message arrive EN PREMIER : le téléphone y apprend son pseudo, dont il a besoin
+    // pour interpréter les événements suivants (par exemple 'tour').
+    socket.emit('reconnecte', { code, pseudo, demarree: partie.demarree, joueurs: partie.joueurs });
+
+    // On remet ce téléphone dans l'état actuel de la partie
+    if (partie.demarree) {
+      if (partie.phase === 'fin') {
+        socket.emit('fin-de-partie', { classement: classement(partie) });
+      } else if (partie.phase === 'minijeu' && partie.miniJeu) {
+        partie.miniJeu.renvoyerEtat(pseudo);
+      } else {
+        socket.emit('tour', infosTour(partie));
+      }
+    }
+
+    io.to(code).emit('liste-joueurs', partie.joueurs);
+    io.to(code).emit('positions', partie.joueurs);
+
+    // Si c'était lui qu'on attendait, on arrête de compter le délai d'absence
+    surveillerJoueurActif(code);
   });
 
   socket.on('demarrer', () => {
     const code = socket.data.codeHote;
     const partie = parties.get(code);
-    if (!partie || partie.demarree || partie.joueurs.length === 0) return;
+    if (!partie || partie.demarree) return;
+
+    // Les joueurs encore déconnectés dans le salon ne participent pas
+    for (const joueur of [...partie.joueurs]) {
+      if (!joueur.connecte) retirerJoueur(code, joueur.pseudo);
+    }
+    if (partie.joueurs.length === 0) return;
 
     partie.demarree = true;
     partie.tourActuel = 1;
@@ -354,6 +495,7 @@ io.on('connection', (socket) => {
       const partie = parties.get(socket.data.codeHote);
       if (partie) {
         clearTimeout(partie.timer);
+        for (const minuteur of partie.abandons.values()) clearTimeout(minuteur);
         if (partie.miniJeu) partie.miniJeu.arreter();
       }
       parties.delete(socket.data.codeHote);
@@ -364,37 +506,29 @@ io.on('connection', (socket) => {
     const partie = parties.get(code);
     if (!partie) return;
 
-    const index = partie.joueurs.findIndex((j) => j.pseudo === socket.data.pseudo);
-    if (index === -1) return;
+    const pseudo = socket.data.pseudo;
 
-    partie.joueurs.splice(index, 1);
-    partie.sockets.delete(socket.data.pseudo);
+    // Ce socket a déjà été remplacé par une reconnexion du même joueur : rien à faire
+    if (partie.sockets.get(pseudo) !== socket.id) return;
+
+    const joueur = partie.joueurs.find((j) => j.pseudo === pseudo);
+    if (!joueur) return;
+
+    // Le joueur n'est PAS retiré : il est marqué déconnecté et garde sa place un moment
+    joueur.connecte = false;
+    partie.sockets.delete(pseudo);
     io.to(code).emit('liste-joueurs', partie.joueurs);
     io.to(code).emit('positions', partie.joueurs);
 
-    if (!partie.demarree || partie.phase === 'fin') return;
-
-    // Plus aucun joueur : on termine la partie
-    if (partie.joueurs.length === 0) {
-      clearTimeout(partie.timer);
-      if (partie.miniJeu) partie.miniJeu.arreter();
-      finDePartie(code);
-      return;
+    // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
+    if (partie.phase !== 'fin') {
+      partie.abandons.set(pseudo, setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION));
     }
 
-    if (index < partie.indexActif) {
-      // Un joueur déjà passé est parti : tout le monde est décalé d'un cran
-      partie.indexActif--;
-    } else if (index === partie.indexActif) {
-      // Le joueur actif est parti : le suivant prend sa place dans le tableau,
-      // donc on recule d'un cran avant de passer au suivant
-      clearTimeout(partie.timer);
-      partie.indexActif--;
-      joueurSuivant(code);
+    // Si c'était son tour, on ne bloque pas la partie trop longtemps
+    if (partie.demarree && partie.phase === 'attente-de' && joueurActif(partie) === joueur) {
+      surveillerJoueurActif(code);
     }
-
-    // Si un mini-jeu est en cours, il ne doit plus attendre ce joueur
-    if (partie.miniJeu) partie.miniJeu.retirerJoueur(socket.data.pseudo);
   });
 });
 
