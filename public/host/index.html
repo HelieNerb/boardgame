@@ -198,8 +198,22 @@
           carte.className = 'score'
             + (joueur.pseudo === pseudoActif ? ' score-actif' : '')
             + (joueur.connecte === false ? ' score-deconnecte' : '');
-          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
+          // Image du personnage
+          const img = document.createElement('img');
+          img.src = '/personnages/j' + joueur.numero + '.png';
+          img.alt = 'Personnage de ' + joueur.pseudo;
+          img.className = 'avatar-joueur';
+
+          carte.appendChild(img);
+
+          // Informations du joueur
+          const infos = document.createElement('span');
+          infos.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
             + (joueur.connecte === false ? ' 💤' : '');
+
+          carte.appendChild(infos);
+
+            
           div.appendChild(carte);
         }
       }
@@ -248,7 +262,16 @@
           for (const joueur of joueurs) {
             if (joueur.position === i) {
               const pion = document.createElement('div');
-              pion.textContent = joueur.pseudo;
+              const img = document.createElement('img');
+              img.src = '/personnages/j' + joueur.numero + '.png';
+              img.alt = joueur.pseudo;
+              img.className = 'avatar-pion';
+
+              pion.appendChild(img);
+
+              const nom = document.createElement('span');
+              nom.textContent = joueur.pseudo;
+              pion.appendChild(nom);
               if (joueur.pseudo === pseudoActif) {
                 pion.className = 'pion-actif';
               }
