@@ -47,6 +47,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/avatar.js"></script>
     <script>
       const socket = io();
       let plateau = [];
@@ -98,7 +99,11 @@
         ul.innerHTML = '';
         for (const joueur of liste) {
           const li = document.createElement('li');
-          li.textContent = joueur.pseudo + (joueur.connecte === false ? ' 💤' : '');
+          li.className = 'joueur-salon' + (joueur.connecte === false ? ' joueur-deconnecte' : '');
+          li.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-salon'));
+          const nom = document.createElement('span');
+          nom.textContent = joueur.pseudo + (joueur.connecte === false ? ' 💤' : '');
+          li.appendChild(nom);
           ul.appendChild(li);
         }
       });
@@ -233,8 +238,11 @@
           carte.className = 'score'
             + (joueur.pseudo === pseudoActif ? ' score-actif' : '')
             + (joueur.connecte === false ? ' score-deconnecte' : '');
-          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
+          carte.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-score'));
+          const infos = document.createElement('span');
+          infos.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
             + (joueur.connecte === false ? ' 💤' : '');
+          carte.appendChild(infos);
           div.appendChild(carte);
         }
       }
@@ -280,16 +288,23 @@
           titre.textContent = type;
           caseDiv.appendChild(titre);
 
+          const pions = document.createElement('div');
+          pions.className = 'pions-case';
           for (const joueur of joueurs) {
             if (joueur.position === i) {
               const pion = document.createElement('div');
-              pion.textContent = joueur.pseudo;
-              if (joueur.pseudo === pseudoActif) {
-                pion.className = 'pion-actif';
-              }
-              caseDiv.appendChild(pion);
+              pion.className = 'pion-case'
+                + (joueur.pseudo === pseudoActif ? ' pion-actif' : '')
+                + (joueur.connecte === false ? ' pion-deconnecte' : '');
+              pion.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-plateau'));
+              const nom = document.createElement('span');
+              nom.className = 'pion-nom';
+              nom.textContent = joueur.pseudo;
+              pion.appendChild(nom);
+              pions.appendChild(pion);
             }
           }
+          if (pions.childElementCount) caseDiv.appendChild(pions);
 
           div.appendChild(caseDiv);
         });

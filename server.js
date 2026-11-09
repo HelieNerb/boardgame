@@ -82,6 +82,21 @@ const GAIN_CASE_BLEUE = 3;
 const PERTE_CASE_ROUGE = 3;
 const PRIX_ETOILE = 10;
 
+const AVATAR_OPTIONS = {
+  color: ['orange', 'corail', 'jaune', 'vert', 'turquoise', 'bleu', 'violet', 'rose'],
+  eyes: ['ronds', 'malicieux', 'plisses', 'surpris'],
+  mouth: ['sourire', 'grand', 'o', 'langue'],
+};
+
+function normaliserAvatar(avatar) {
+  const choix = avatar && typeof avatar === 'object' ? avatar : {};
+  return {
+    color: AVATAR_OPTIONS.color.includes(choix.color) ? choix.color : 'orange',
+    eyes: AVATAR_OPTIONS.eyes.includes(choix.eyes) ? choix.eyes : 'ronds',
+    mouth: AVATAR_OPTIONS.mouth.includes(choix.mouth) ? choix.mouth : 'sourire',
+  };
+}
+
 const parties = new Map();
 
 // ─────────────────────────────────────────────
@@ -457,7 +472,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('rejoindre', ({ code, pseudo }) => {
+  socket.on('rejoindre', ({ code, pseudo, avatar } = {}) => {
     code = String(code).trim().toUpperCase();
     pseudo = String(pseudo).trim();
 
@@ -483,7 +498,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    partie.joueurs.push({ pseudo, position: 0, pieces: PIECES_DEPART, etoiles: 0, connecte: true });
+    partie.joueurs.push({
+      pseudo,
+      avatar: normaliserAvatar(avatar),
+      position: 0,
+      pieces: PIECES_DEPART,
+      etoiles: 0,
+      connecte: true
+    });
     socket.join(code);
     socket.data.code = code;
     socket.data.pseudo = pseudo;

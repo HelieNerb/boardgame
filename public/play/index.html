@@ -10,6 +10,23 @@
       <h1>Rejoindre une partie</h1>
       <input id="code" placeholder="Code" maxlength="4"><br>
       <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
+      <section class="avatar-editor" aria-labelledby="avatar-titre">
+        <h2 id="avatar-titre">Crée ton personnage</h2>
+        <div id="avatar-apercu" class="avatar-apercu" aria-live="polite"></div>
+        <p class="avatar-label">Couleur</p>
+        <div id="avatar-couleurs" class="avatar-couleurs"></div>
+        <div class="avatar-reglage">
+          <button type="button" aria-label="Yeux précédents" onclick="defilerAvatar('eyes', -1)">‹</button>
+          <span id="avatar-yeux"></span>
+          <button type="button" aria-label="Yeux suivants" onclick="defilerAvatar('eyes', 1)">›</button>
+        </div>
+        <div class="avatar-reglage">
+          <button type="button" aria-label="Bouches précédentes" onclick="defilerAvatar('mouth', -1)">‹</button>
+          <span id="avatar-bouche"></span>
+          <button type="button" aria-label="Bouches suivantes" onclick="defilerAvatar('mouth', 1)">›</button>
+        </div>
+        <button type="button" class="avatar-aleatoire" onclick="avatarAleatoire()">🎲 Personnage aléatoire</button>
+      </section>
       <button onclick="rejoindre()">Rejoindre</button>
     </div>
 
@@ -44,12 +61,62 @@
       <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
       <button onclick="choisirEtoile(false)">Renoncer</button>
     </div>
-    </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/avatar.js"></script>
     <script>
       const socket = io();
       let monPseudo = null;
+
+      const CLE_AVATAR = 'mayo-party-avatar';
+      function lireAvatar() {
+        try { return JSON.parse(localStorage.getItem(CLE_AVATAR)); } catch (e) { return null; }
+      }
+      let avatarCourant = MayoAvatar.normaliser(lireAvatar());
+
+      function enregistrerAvatar() {
+        try { localStorage.setItem(CLE_AVATAR, JSON.stringify(avatarCourant)); } catch (e) {}
+      }
+
+      function afficherAvatar() {
+        const apercu = document.getElementById('avatar-apercu');
+        apercu.replaceChildren(MayoAvatar.creer(avatarCourant, 'avatar-sprite-grand'));
+        document.getElementById('avatar-yeux').textContent = MayoAvatar.optionLabel('eyes', avatarCourant.eyes);
+        document.getElementById('avatar-bouche').textContent = MayoAvatar.optionLabel('mouth', avatarCourant.mouth);
+
+        const couleurs = document.getElementById('avatar-couleurs');
+        couleurs.replaceChildren();
+        for (const couleur of MayoAvatar.options.color) {
+          const pastille = document.createElement('button');
+          pastille.type = 'button';
+          pastille.className = 'avatar-pastille' + (couleur.id === avatarCourant.color ? ' selectionnee' : '');
+          pastille.style.backgroundColor = couleur.hex;
+          pastille.setAttribute('aria-label', couleur.label);
+          pastille.setAttribute('aria-pressed', String(couleur.id === avatarCourant.color));
+          pastille.onclick = () => {
+            avatarCourant.color = couleur.id;
+            enregistrerAvatar();
+            afficherAvatar();
+          };
+          couleurs.appendChild(pastille);
+        }
+      }
+
+      function defilerAvatar(groupe, sens) {
+        const options = MayoAvatar.options[groupe];
+        const index = options.findIndex((option) => option.id === avatarCourant[groupe]);
+        avatarCourant[groupe] = options[(index + sens + options.length) % options.length].id;
+        enregistrerAvatar();
+        afficherAvatar();
+      }
+
+      function avatarAleatoire() {
+        avatarCourant = MayoAvatar.aleatoire();
+        enregistrerAvatar();
+        afficherAvatar();
+      }
+
+      afficherAvatar();
 
       const params = new URLSearchParams(window.location.search);
       const codeFromUrl = params.get('code');
@@ -126,6 +193,7 @@
         socket.emit('rejoindre', {
           code: document.getElementById('code').value,
           pseudo: document.getElementById('pseudo').value,
+          avatar: avatarCourant,
         });
       }
 
