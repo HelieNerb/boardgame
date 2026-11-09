@@ -22,6 +22,22 @@
       <p id="de"></p>
     </div>
 
+    <div id="quiz" hidden>
+      <div id="quiz-ecriture" hidden>
+        <h2>Écris un titre drôle !</h2>
+        <p>Regarde l'image sur l'écran principal</p>
+        <input id="quiz-texte" placeholder="Ton titre..." maxlength="100" autocomplete="off"><br>
+        <button id="quiz-envoyer" onclick="envoyerTitre()">Envoyer</button>
+      </div>
+
+      <div id="quiz-vote" hidden>
+        <h2>Vote pour le plus drôle !</h2>
+        <div id="quiz-choix"></div>
+      </div>
+
+      <p id="quiz-message" class="message"></p>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
@@ -102,7 +118,83 @@
         }
       });
 
+      // ── Mini-jeu : quiz du titre drôle ──────────
+
+      let monIdQuiz = null; // l'id de mon propre titre (je ne peux pas voter pour lui)
+
+      function afficherQuiz(partie) {
+        // partie : 'ecriture', 'vote' ou null pour tout masquer
+        document.getElementById('quiz').hidden = partie === null;
+        document.getElementById('quiz-ecriture').hidden = partie !== 'ecriture';
+        document.getElementById('quiz-vote').hidden = partie !== 'vote';
+        document.getElementById('jeu').hidden = partie !== null;
+      }
+
+      function envoyerTitre() {
+        const champ = document.getElementById('quiz-texte');
+        if (champ.value.trim() === '') return;
+        socket.emit('quiz-reponse', champ.value);
+        // On verrouille tout de suite ; le serveur confirme avec 'quiz-reponse-ok'
+        champ.disabled = true;
+        document.getElementById('quiz-envoyer').disabled = true;
+      }
+
+      socket.on('quiz-ecriture', () => {
+        const champ = document.getElementById('quiz-texte');
+        champ.value = '';
+        champ.disabled = false;
+        document.getElementById('quiz-envoyer').disabled = false;
+        document.getElementById('quiz-message').textContent = '';
+        monIdQuiz = null;
+        afficherQuiz('ecriture');
+      });
+
+      socket.on('quiz-reponse-ok', () => {
+        document.getElementById('quiz-message').textContent = 'Titre envoyé ! On attend les autres...';
+      });
+
+      socket.on('quiz-mon-id', ({ id }) => {
+        monIdQuiz = id;
+      });
+
+      socket.on('quiz-vote', ({ propositions }) => {
+        afficherQuiz('vote');
+        document.getElementById('quiz-message').textContent = '';
+        const div = document.getElementById('quiz-choix');
+        div.innerHTML = '';
+        for (const p of propositions) {
+          if (p.id === monIdQuiz) continue; // pas de vote pour soi (le serveur vérifie aussi)
+          const bouton = document.createElement('button');
+          bouton.className = 'choix';
+          bouton.textContent = p.texte;
+          bouton.onclick = () => {
+            socket.emit('quiz-vote', p.id);
+            for (const b of div.querySelectorAll('button')) b.disabled = true;
+          };
+          div.appendChild(bouton);
+        }
+        if (div.children.length === 0) {
+          document.getElementById('quiz-message').textContent = 'Personne d\'autre n\'a écrit de titre...';
+        }
+      });
+
+      socket.on('quiz-vote-ok', () => {
+        document.getElementById('quiz-message').textContent = 'Vote enregistré !';
+      });
+
+      socket.on('quiz-resultats', ({ gagnants, pieces }) => {
+        afficherQuiz('vote');
+        document.getElementById('quiz-choix').innerHTML = '';
+        document.getElementById('quiz-message').textContent = gagnants.includes(monPseudo)
+          ? '🏆 Ton titre a gagné ! +' + pieces + ' 🪙'
+          : 'Regarde les résultats sur l\'écran principal';
+      });
+
+      // Le tour suivant démarre : on revient au dé
+      socket.on('tour', () => afficherQuiz(null));
+
       socket.on('fin-de-partie', () => {
+        afficherQuiz(null);
         document.getElementById('bouton-de').disabled = true;
         document.getElementById('statut-tour').textContent = 'La partie est terminée !';
       });

@@ -5,7 +5,7 @@ const os = require('os');
 const QRCode = require('qrcode'); // Librairie ajoutée
 const fs = require('fs');
 const path = require('path');
-const { demarrerQuiz } = require('./minijeux/quiz1');
+const { demarrerQuiz } = require('./minijeux/quiz');
 
 const app = express();
 const server = http.createServer(app);

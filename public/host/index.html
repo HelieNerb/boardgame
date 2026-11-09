@@ -30,6 +30,14 @@
       <div id="plateau" class="plateau"></div>
     </div>
 
+    <div id="quiz" hidden>
+      <h1 id="quiz-titre">Trouve un titre drôle !</h1>
+      <h2 id="quiz-chrono" class="info-tour"></h2>
+      <img id="quiz-image" class="quiz-image" alt="Image du quiz">
+      <p id="quiz-progression" class="message"></p>
+      <div id="quiz-propositions" class="propositions"></div>
+    </div>
+
     <div id="fin" hidden>
       <h1>Fin de la partie 🎉</h1>
       <div id="resultats"></div>
@@ -86,12 +94,89 @@
         afficherPlateau();
       });
 
+      // ── Mini-jeu : quiz du titre drôle ──────────
+
+      let chrono = null;
+
+      // Affiche un compte à rebours dans #quiz-chrono
+      function lancerChrono(secondes) {
+        clearInterval(chrono);
+        const el = document.getElementById('quiz-chrono');
+        let reste = secondes;
+        el.textContent = '⏱️ ' + reste + ' s';
+        chrono = setInterval(() => {
+          reste--;
+          el.textContent = reste > 0 ? '⏱️ ' + reste + ' s' : '';
+          if (reste <= 0) clearInterval(chrono);
+        }, 1000);
+      }
+
+      socket.on('quiz-ecriture', ({ image, duree }) => {
+        document.getElementById('jeu').hidden = true;
+        document.getElementById('quiz').hidden = false;
+        document.getElementById('quiz-titre').textContent = 'Écrivez un titre drôle pour cette image !';
+        document.getElementById('quiz-image').src = image;
+        document.getElementById('quiz-image').hidden = false;
+        document.getElementById('quiz-propositions').innerHTML = '';
+        lancerChrono(duree);
+      });
+
+      socket.on('quiz-progression', ({ etape, fait, total }) => {
+        const verbe = etape === 'ecriture' ? 'ont écrit' : 'ont voté';
+        document.getElementById('quiz-progression').textContent = fait + ' / ' + total + ' ' + verbe;
+      });
+
+      socket.on('quiz-vote', ({ propositions, duree }) => {
+        document.getElementById('quiz-titre').textContent = 'Votez pour le titre le plus drôle !';
+        const div = document.getElementById('quiz-propositions');
+        div.innerHTML = '';
+        for (const p of propositions) {
+          const carte = document.createElement('div');
+          carte.className = 'proposition';
+          carte.textContent = p.texte; // textContent : le texte d'un joueur n'est jamais interprété comme du HTML
+          div.appendChild(carte);
+        }
+        lancerChrono(duree);
+      });
+
+      socket.on('quiz-resultats', ({ resultats, gagnants, pieces, assezDeReponses }) => {
+        clearInterval(chrono);
+        document.getElementById('quiz-chrono').textContent = '';
+        document.getElementById('quiz-progression').textContent = '';
+
+        if (!assezDeReponses) {
+          document.getElementById('quiz-titre').textContent = 'Pas assez de titres pour voter...';
+        } else if (gagnants.length === 0) {
+          document.getElementById('quiz-titre').textContent = 'Aucun vote, personne ne gagne de pièces';
+        } else {
+          document.getElementById('quiz-titre').textContent =
+            '🏆 ' + gagnants.join(' et ') + ' gagne' + (gagnants.length > 1 ? 'nt' : '') + ' ' + pieces + ' 🪙 !';
+        }
+
+        const div = document.getElementById('quiz-propositions');
+        div.innerHTML = '';
+        for (const r of resultats) {
+          const carte = document.createElement('div');
+          carte.className = 'proposition' + (gagnants.includes(r.auteur) ? ' proposition-gagnante' : '');
+          carte.textContent = '« ' + r.texte + ' » — ' + r.auteur + ' (' + r.votes + ' vote' + (r.votes > 1 ? 's' : '') + ')';
+          div.appendChild(carte);
+        }
+      });
+
+      // Le tour suivant démarre : on revient au plateau
+      socket.on('tour', () => {
+        document.getElementById('quiz').hidden = true;
+        document.getElementById('jeu').hidden = false;
+      });
+
       socket.on('effet-case', ({ message }) => {
         document.getElementById('message-effet').textContent = message;
       });
 
       socket.on('fin-de-partie', ({ classement }) => {
         document.getElementById('jeu').hidden = true;
+        document.getElementById('quiz').hidden = true;
+        clearInterval(chrono);
         document.getElementById('fin').hidden = false;
 
         // Le serveur envoie déjà le classement trié (étoiles, puis pièces)
