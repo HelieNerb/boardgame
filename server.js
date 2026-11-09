@@ -32,13 +32,43 @@ const PORT = 3000;
 
 const PLATEAU = [
   'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
-  'etoile', 'bleue', 'rouge', 'bleue', 'bleue', 'rouge',
-  'etoile', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
-  'etoile', 'bleue', 'rouge', 'bleue', 'rouge', 'bleue',
+  'bleue', 'bleue', 'rouge', 'bleue', 'bleue', 'rouge',
+  'bleue', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
+  'bleue', 'bleue', 'rouge', 'bleue', 'rouge', 'bleue',
 ];
 
-// Valeurs par défaut (plus tard : modifiables dans l'écran de paramètres)
-const NB_TOURS_DEFAUT = 5;
+// Emplacements possibles pour l'étoile
+const POSITIONS_ETOILE = [6, 12, 18];
+
+function choisirPositionEtoile(partie) {
+  const positionsDisponibles = POSITIONS_ETOILE.filter(position =>
+    position !== partie.etoilePosition &&
+    !partie.joueurs.some(joueur => joueur.position === position)
+  );
+
+  if (positionsDisponibles.length === 0) {
+    const autresPositions = POSITIONS_ETOILE.filter(
+      position => position !== partie.etoilePosition
+    );
+
+    return autresPositions[
+      Math.floor(Math.random() * autresPositions.length)
+    ];
+  }
+
+  return positionsDisponibles[
+    Math.floor(Math.random() * positionsDisponibles.length)
+  ];
+}
+function plateauAvecEtoile(partie) {
+  return PLATEAU.map((type, index) =>
+    index === partie.etoilePosition ? 'etoile' : type
+  );
+}
+// Paramètres de partie
+const NB_TOURS_DEFAUT = 15;
+const NB_TOURS_MIN = 5;
+const NB_TOURS_MAX = 50;
 const DELAI_FIN_TOUR_JOUEUR = 2500; // ms, le temps de voir le pion avancer et l'effet de la case
 
 // Reconnexion : un joueur déconnecté garde sa place pendant ce délai, puis il est retiré
@@ -123,35 +153,113 @@ function joueurActif(partie) {
 //  { type, message } que l'on envoie aux écrans pour l'afficher.
 // ─────────────────────────────────────────────
 
-function appliquerEffetCase(joueur) {
-  const type = PLATEAU[joueur.position];
+
+function appliquerEffetCase(partie, joueur) {
+  const type = joueur.position === partie.etoilePosition
+    ? 'etoile'
+    : PLATEAU[joueur.position];
 
   switch (type) {
     case 'bleue':
       joueur.pieces += GAIN_CASE_BLEUE;
-      return { type, message: `${joueur.pseudo} gagne ${GAIN_CASE_BLEUE} pièces !` };
+      return {
+        type,
+        message: `${joueur.pseudo} gagne ${GAIN_CASE_BLEUE} pièces !`
+      };
 
     case 'rouge': {
-      // On ne descend jamais sous 0 pièce
       const perte = Math.min(PERTE_CASE_ROUGE, joueur.pieces);
       joueur.pieces -= perte;
-      return { type, message: `${joueur.pseudo} perd ${perte} pièces...` };
+
+      return {
+        type,
+        message: `${joueur.pseudo} perd ${perte} pièces...`
+      };
     }
 
     case 'etoile':
       if (joueur.pieces >= PRIX_ETOILE) {
         joueur.pieces -= PRIX_ETOILE;
         joueur.etoiles++;
-        return { type, message: `${joueur.pseudo} achète une étoile pour ${PRIX_ETOILE} pièces ! ⭐` };
+
+        return {
+          type,
+          achatEtoile: true,
+          message: `${joueur.pseudo} achète une étoile pour ${PRIX_ETOILE} pièces ! ⭐`
+        };
       }
+
       return {
         type,
-        message: `${joueur.pseudo} n'a pas assez de pièces pour l'étoile (${PRIX_ETOILE} nécessaires)`,
+        achatEtoile: false,
+        message: `${joueur.pseudo} n'a pas assez de pièces pour l'étoile (${PRIX_ETOILE} nécessaires)`
       };
 
     default:
-      // 'depart' : aucun effet
-      return { type, message: `${joueur.pseudo} est sur la case départ` };
+      return {
+        type,
+        message: `${joueur.pseudo} est sur la case départ`
+      };
+  }
+}
+
+function deplacerPasAPas(code, pseudo, pasRestants) {
+  const partie = parties.get(code);
+  if (!partie || partie.phase !== 'deplacement') return;
+
+  const joueur = joueurActif(partie);
+
+  if (!joueur || joueur.pseudo !== pseudo) return;
+
+  // Avancer d'une seule case
+  joueur.position = (joueur.position + 1) % PLATEAU.length;
+
+  // L'étoile interrompt le déplacement jusqu'au choix du joueur.
+  if (joueur.position === partie.etoilePosition) {
+    partie.phase = 'choix-etoile';
+    partie.deplacementSuspendu = { pseudo, pasRestants };
+    io.to(code).emit('positions', partie.joueurs);
+    io.to(code).emit('demande-achat-etoile', {
+      pseudo,
+      pieces: joueur.pieces,
+      prix: PRIX_ETOILE,
+      pasRestants
+    });
+    return;
+  }
+
+  // L'effet s'applique uniquement sur la case d'arrivée, au dernier pas.
+  if (pasRestants === 1) {
+    const effet = appliquerEffetCase(partie, joueur);
+
+    io.to(code).emit('effet-case', {
+      pseudo: joueur.pseudo,
+      ...effet
+    });
+
+    // Si une étoile est achetée, on la déplace immédiatement.
+    if (effet.achatEtoile) {
+      partie.etoilePosition = choisirPositionEtoile(partie);
+
+      io.to(code).emit('plateau-mis-a-jour', {
+        plateau: plateauAvecEtoile(partie)
+      });
+    }
+  }
+
+  // Actualiser les positions et les scores
+  io.to(code).emit('positions', partie.joueurs);
+
+  // Continuer tant qu'il reste des déplacements
+  if (pasRestants > 1) {
+    partie.timer = setTimeout(() => {
+      deplacerPasAPas(code, pseudo, pasRestants - 1);
+    }, 500);
+  } else {
+    // Fin du déplacement
+    partie.timer = setTimeout(() => {
+      joueurSuivant(code);
+    }, DELAI_FIN_TOUR_JOUEUR);
   }
 }
 
@@ -321,6 +429,8 @@ io.on('connection', (socket) => {
       tourActuel: 0,
       nbTours: NB_TOURS_DEFAUT,
       indexActif: 0,
+      etoilePosition: null,
+      deplacementSuspendu: null,
       timer: null,
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
       imagesRestantes: null,  // le "paquet" d'images du quiz
@@ -328,6 +438,9 @@ io.on('connection', (socket) => {
       tokens: new Map(),      // token secret → pseudo (jamais envoyé aux autres écrans)
       abandons: new Map(),    // pseudo → minuteur avant retrait définitif
     });
+    const partie = parties.get(code);
+    partie.etoilePosition = choisirPositionEtoile(partie);
+    
     socket.join(code);
     socket.data.codeHote = code;
 
@@ -435,7 +548,7 @@ io.on('connection', (socket) => {
     surveillerJoueurActif(code);
   });
 
-  socket.on('demarrer', () => {
+  socket.on('demarrer', ({ nbTours } = {}) => {
     const code = socket.data.codeHote;
     const partie = parties.get(code);
     if (!partie || partie.demarree) return;
@@ -446,11 +559,22 @@ io.on('connection', (socket) => {
     }
     if (partie.joueurs.length === 0) return;
 
+    const nbToursChoisi = Number(nbTours);
+    partie.nbTours = Number.isInteger(nbToursChoisi) &&
+      nbToursChoisi >= NB_TOURS_MIN && nbToursChoisi <= NB_TOURS_MAX
+      ? nbToursChoisi
+      : NB_TOURS_DEFAUT;
+
     partie.demarree = true;
     partie.tourActuel = 1;
     partie.indexActif = 0;
 
-    io.to(code).emit('partie-demarree', { plateau: PLATEAU, joueurs: partie.joueurs });
+    io.to(code).emit('partie-demarree', {
+  plateau: plateauAvecEtoile(partie),
+  joueurs: partie.joueurs
+  });
+
+    // Le premier joueur peut lancer dès le démarrage.
     demarrerTourJoueur(code);
   });
 
@@ -467,16 +591,58 @@ io.on('connection', (socket) => {
     partie.phase = 'deplacement';
 
     const de = Math.floor(Math.random() * 6) + 1;
-    joueur.position = (joueur.position + de) % PLATEAU.length;
-
     socket.emit('resultat-de', de);
 
-    // On applique l'effet de la case, puis on prévient tout le monde
-    const effet = appliquerEffetCase(joueur);
-    io.to(code).emit('effet-case', { pseudo: joueur.pseudo, ...effet });
+    // Le déplacement et les effets sont traités case par case.
+    deplacerPasAPas(code, joueur.pseudo, de);
+  });
+
+  socket.on('choix-etoile', ({ acheter } = {}) => {
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    const suspendu = partie && partie.deplacementSuspendu;
+    const joueur = partie && joueurActif(partie);
+
+    if (!partie || partie.phase !== 'choix-etoile' || !suspendu ||
+        !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
+
+    const achatAccepte = acheter === true && joueur.pieces >= PRIX_ETOILE;
+    if (achatAccepte) {
+      joueur.pieces -= PRIX_ETOILE;
+      joueur.etoiles++;
+      partie.etoilePosition = choisirPositionEtoile(partie);
+
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'etoile',
+        achatEtoile: true,
+        message: `${joueur.pseudo} achète une étoile pour ${PRIX_ETOILE} pièces ! ⭐`
+      });
+      io.to(code).emit('plateau-mis-a-jour', {
+        plateau: plateauAvecEtoile(partie)
+      });
+    } else {
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'etoile',
+        achatEtoile: false,
+        message: `${joueur.pseudo} renonce à l'étoile.`
+      });
+    }
+
+    partie.deplacementSuspendu = null;
+    partie.phase = 'deplacement';
     io.to(code).emit('positions', partie.joueurs);
 
-    partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
+    if (suspendu.pasRestants > 1) {
+      partie.timer = setTimeout(() => {
+        deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants - 1);
+      }, 500);
+    } else {
+      partie.timer = setTimeout(() => {
+        joueurSuivant(code);
+      }, DELAI_FIN_TOUR_JOUEUR);
+    }
   });
 
   // Messages du mini-jeu : server.js ne fait que les transmettre au quiz en cours
@@ -525,15 +691,29 @@ io.on('connection', (socket) => {
       partie.abandons.set(pseudo, setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION));
     }
 
+    // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
+    if (partie.phase !== 'fin') {
+      partie.abandons.set(
+        pseudo,
+        setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION)
+      );
+    }
+
     // Si c'était son tour, on ne bloque pas la partie trop longtemps
-    if (partie.demarree && partie.phase === 'attente-de' && joueurActif(partie) === joueur) {
+    if (
+      partie.demarree &&
+      partie.phase === 'attente-de' &&
+      joueurActif(partie) === joueur
+    ) {
       surveillerJoueurActif(code);
     }
   });
 });
+
 
 server.listen(PORT, () => {
   console.log(`Serveur prêt :`);
   console.log(`- Local : http://localhost:${PORT}`);
   console.log(`- Réseau Wi-Fi : http://${LOCAL_IP}:${PORT}`);
 });
+
