@@ -38,6 +38,15 @@
       <p id="quiz-message" class="message"></p>
     </div>
 
+    <!-- [AJOUT] Mini-jeu 2 : quiz de culture générale -->
+    <div id="culture" hidden>
+      <p id="culture-entete" class="statut-tour"></p>
+      <h2 id="culture-consigne"></h2>
+      <div id="culture-boutons" class="culture-grille"></div>
+      <div id="culture-resultat" class="culture-resultat" hidden></div>
+      <p id="culture-message" class="message"></p>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
       const socket = io();
@@ -102,6 +111,7 @@
           document.getElementById('formulaire').hidden = false;
           document.getElementById('jeu').hidden = true;
           document.getElementById('quiz').hidden = true;
+          document.getElementById('culture').hidden = true; // [AJOUT]
           document.getElementById('message').textContent =
             'Tu n\'es plus dans cette partie. Tu peux la rejoindre à nouveau si elle n\'a pas commencé.';
         }
@@ -256,9 +266,132 @@
 
       socket.on('fin-de-partie', () => {
         afficherQuiz(null);
+        afficherCulture(false); // [AJOUT]
         document.getElementById('bouton-de').disabled = true;
         document.getElementById('statut-tour').textContent = 'La partie est terminée !';
       });
+
+      // ── [AJOUT] Mini-jeu : quiz de culture générale (façon Kahoot) ──
+
+      // Affiche (ou masque) l'écran du quiz culture
+      function afficherCulture(visible) {
+        document.getElementById('culture').hidden = !visible;
+        if (visible) {
+          document.getElementById('jeu').hidden = true;
+          document.getElementById('quiz').hidden = true;
+        }
+      }
+
+      // Remet l'écran du quiz culture à zéro avant chaque nouvelle étape
+      function viderCulture() {
+        document.getElementById('culture-consigne').textContent = '';
+        document.getElementById('culture-boutons').innerHTML = '';
+        document.getElementById('culture-resultat').hidden = true;
+        document.getElementById('culture-message').textContent = '';
+      }
+
+      function texteEntete(numero, total, categorie) {
+        return 'Question ' + numero + '/' + total + ' — ' + categorie;
+      }
+
+      // 1er, 2e, 3e...
+      function texteRang(rang) {
+        return rang + (rang === 1 ? 'er' : 'e');
+      }
+
+      // La question est affichée sur l'écran principal, les boutons n'apparaissent pas encore
+      socket.on('culture-lecture', ({ numero, total, categorie }) => {
+        afficherCulture(true);
+        viderCulture();
+        document.getElementById('culture-entete').textContent = texteEntete(numero, total, categorie);
+        document.getElementById('culture-consigne').textContent = 'Regarde l\'écran !';
+      });
+
+      // Les 4 boutons apparaissent (dejaRepondu : envoyé seulement à un joueur qui se reconnecte)
+      socket.on('culture-question', ({ numero, total, categorie, reponses, dejaRepondu }) => {
+        afficherCulture(true);
+        viderCulture();
+        document.getElementById('culture-entete').textContent = texteEntete(numero, total, categorie);
+        document.getElementById('culture-consigne').textContent = 'Choisis ta réponse !';
+
+        const div = document.getElementById('culture-boutons');
+        for (const r of reponses) {
+          const bouton = document.createElement('button');
+          bouton.className = 'culture-bouton culture-' + r.couleur;
+
+          const forme = document.createElement('span');
+          forme.className = 'forme forme-' + r.forme;
+          const texte = document.createElement('span');
+          texte.textContent = r.texte;
+
+          bouton.append(forme, texte);
+          bouton.onclick = () => choisirReponse(r.id);
+          div.appendChild(bouton);
+        }
+
+        if (dejaRepondu !== null && dejaRepondu !== undefined) {
+          marquerChoix(dejaRepondu);
+          document.getElementById('culture-message').textContent = 'Réponse envoyée ! On attend les autres...';
+        }
+      });
+
+      function choisirReponse(index) {
+        socket.emit('culture-reponse', index);
+        marquerChoix(index); // on verrouille tout de suite : une seule réponse possible
+      }
+
+      // Désactive tous les boutons et fait ressortir celui qui a été choisi
+      function marquerChoix(index) {
+        const boutons = document.querySelectorAll('#culture-boutons button');
+        boutons.forEach((b, i) => {
+          b.disabled = true;
+          b.classList.toggle('culture-choisi', i === index);
+          b.classList.toggle('culture-pas-choisi', i !== index);
+        });
+      }
+
+      socket.on('culture-reponse-ok', () => {
+        document.getElementById('culture-message').textContent = 'Réponse envoyée ! On attend les autres...';
+      });
+
+      // Après chaque question : mon résultat personnel (correct ? combien de points ? quelle place ?)
+      socket.on('culture-mon-resultat', ({ repondu, correct, points, score, rang }) => {
+        afficherCulture(true);
+        viderCulture();
+
+        const div = document.getElementById('culture-resultat');
+        div.className = 'culture-resultat ' + (correct ? 'culture-correct' : 'culture-faux');
+        div.innerHTML = '';
+
+        const titre = document.createElement('h2');
+        titre.textContent = correct ? 'Correct !' : repondu ? 'Raté...' : 'Trop tard !';
+        const gain = document.createElement('p');
+        gain.className = 'culture-points';
+        gain.textContent = '+' + points + ' points';
+        const total = document.createElement('p');
+        total.textContent = 'Total : ' + score + ' points — ' + texteRang(rang) + ' place';
+
+        div.append(titre, gain, total);
+        div.hidden = false;
+      });
+
+      // Fin du quiz : ma place finale et les pièces gagnées
+      socket.on('culture-classement', ({ classement }) => {
+        afficherCulture(true);
+        viderCulture();
+        document.getElementById('culture-entete').textContent = 'Quiz terminé !';
+
+        const moi = classement.find((l) => l.pseudo === monPseudo);
+        if (!moi) return;
+        document.getElementById('culture-consigne').textContent =
+          'Tu finis ' + texteRang(moi.rang) + ' avec ' + moi.score + ' points';
+        document.getElementById('culture-message').textContent = moi.pieces > 0
+          ? 'Bravo, tu gagnes ' + moi.pieces + ' 🪙 !'
+          : 'Regarde le classement sur l\'écran principal';
+      });
+
+      // Le tour suivant démarre : on quitte le quiz culture (le dé est réaffiché par afficherQuiz)
+      socket.on('tour', () => afficherCulture(false));
     </script>
   </body>
 </html>
