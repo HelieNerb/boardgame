@@ -50,6 +50,9 @@
     <script src="/avatar.js"></script>
     <script>
       const socket = io();
+      socket.on('erreur-demarrage', (message) => {
+        alert(message);
+      });
       let plateau = [];
       let joueurs = [];
       let pseudoActif = null;
