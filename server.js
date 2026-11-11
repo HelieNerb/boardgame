@@ -606,11 +606,18 @@ io.on('connection', (socket) => {
     const partie = parties.get(code);
     if (!partie || partie.demarree) return;
 
-    // Les joueurs encore déconnectés dans le salon ne participent pas
+    // Les joueurs déconnectés ne participent pas
     for (const joueur of [...partie.joueurs]) {
       if (!joueur.connecte) retirerJoueur(code, joueur.pseudo);
     }
-    if (partie.joueurs.length === 0) return;
+
+    // Minimum de 3 joueurs
+    if (partie.joueurs.length < 3) {
+      socket.emit('erreur-demarrage',
+        'Il faut au moins 3 joueurs connectés pour démarrer la partie !'
+      );
+      return;
+    }
 
     const nbToursChoisi = Number(nbTours);
     partie.nbTours = Number.isInteger(nbToursChoisi) &&
