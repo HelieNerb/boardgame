@@ -41,6 +41,17 @@
       <div id="quiz-propositions" class="propositions"></div>
     </div>
 
+    <!-- [AJOUT] Mini-jeu 2 : quiz de culture générale -->
+    <div id="culture" hidden>
+      <p id="culture-entete" class="info-tour"></p>
+      <h1 id="culture-question" class="culture-question"></h1>
+      <h2 id="culture-chrono" class="culture-chrono"></h2>
+      <div id="culture-reponses" class="culture-grille culture-grille-hote"></div>
+      <p id="culture-progression" class="message"></p>
+      <p id="culture-bilan" class="culture-bilan"></p>
+      <div id="culture-classement" class="propositions"></div>
+    </div>
+
     <div id="fin" hidden>
       <h1>Fin de la partie 🎉</h1>
       <div id="resultats"></div>
@@ -137,9 +148,10 @@
       let chrono = null;
 
       // Affiche un compte à rebours dans #quiz-chrono
-      function lancerChrono(secondes) {
+      // [MODIFIÉ] idElement permet de réutiliser le chrono pour le quiz culture
+      function lancerChrono(secondes, idElement = 'quiz-chrono') {
         clearInterval(chrono);
-        const el = document.getElementById('quiz-chrono');
+        const el = document.getElementById(idElement);
         let reste = secondes;
         el.textContent = '⏱️ ' + reste + ' s';
         chrono = setInterval(() => {
@@ -216,9 +228,120 @@
         document.getElementById('message-effet').textContent = message;
       });
 
+      // ── [AJOUT] Mini-jeu : quiz de culture générale (façon Kahoot) ──
+
+      function afficherCulture() {
+        document.getElementById('jeu').hidden = true;
+        document.getElementById('quiz').hidden = true;
+        document.getElementById('culture').hidden = false;
+      }
+
+      // Remet l'écran à zéro avant chaque nouvelle étape
+      function viderCulture() {
+        for (const id of ['culture-chrono', 'culture-progression', 'culture-bilan']) {
+          document.getElementById(id).textContent = '';
+        }
+        document.getElementById('culture-reponses').innerHTML = '';
+        document.getElementById('culture-classement').innerHTML = '';
+      }
+
+      // Une carte de réponse : forme + texte (+ nombre de joueurs pendant la correction)
+      function creerCarteReponse(r) {
+        const carte = document.createElement('div');
+        carte.className = 'culture-carte culture-' + r.couleur;
+
+        const forme = document.createElement('span');
+        forme.className = 'forme forme-' + r.forme;
+        const texte = document.createElement('span');
+        texte.className = 'culture-carte-texte';
+        texte.textContent = r.texte;
+        const compteur = document.createElement('span');
+        compteur.className = 'culture-compteur';
+
+        carte.append(forme, texte, compteur);
+        return carte;
+      }
+
+      // Affiche une liste « 1. Till — 1684 points » (+ les pièces à la fin)
+      function afficherListeClassement(classement, avecPieces) {
+        const div = document.getElementById('culture-classement');
+        div.innerHTML = '';
+        for (const ligne of classement) {
+          const carte = document.createElement('div');
+          carte.className = 'proposition' + (ligne.rang === 1 ? ' proposition-gagnante' : '');
+          carte.textContent = ligne.rang + '. ' + ligne.pseudo + ' — ' + ligne.score + ' points'
+            + (avecPieces && ligne.pieces > 0 ? '  (+' + ligne.pieces + ' 🪙)' : '');
+          div.appendChild(carte);
+        }
+      }
+
+      // 1. La question s'affiche seule quelques secondes
+      socket.on('culture-lecture', ({ numero, total, categorie, question, duree }) => {
+        afficherCulture();
+        viderCulture();
+        document.getElementById('culture-entete').textContent =
+          'Question ' + numero + ' / ' + total + ' — ' + categorie;
+        document.getElementById('culture-question').textContent = question;
+        lancerChrono(duree, 'culture-chrono');
+      });
+
+      // 2. Les 4 réponses apparaissent, le chrono démarre
+      socket.on('culture-question', ({ numero, total, categorie, question, reponses, duree }) => {
+        afficherCulture();
+        viderCulture();
+        document.getElementById('culture-entete').textContent =
+          'Question ' + numero + ' / ' + total + ' — ' + categorie;
+        document.getElementById('culture-question').textContent = question;
+
+        const div = document.getElementById('culture-reponses');
+        for (const r of reponses) div.appendChild(creerCarteReponse(r));
+        lancerChrono(duree, 'culture-chrono');
+      });
+
+      socket.on('culture-progression', ({ fait, total }) => {
+        document.getElementById('culture-progression').textContent = fait + ' / ' + total + ' ont répondu';
+      });
+
+      // 3. Correction : bonne réponse en avant, nombre de joueurs par réponse, classement provisoire
+      socket.on('culture-correction', ({ bonne, repartition, detail, classement }) => {
+        clearInterval(chrono);
+        document.getElementById('culture-chrono').textContent = '';
+        document.getElementById('culture-progression').textContent = '';
+
+        const cartes = document.querySelectorAll('#culture-reponses .culture-carte');
+        cartes.forEach((carte, i) => {
+          carte.classList.add(i === bonne ? 'culture-bonne' : 'culture-mauvaise');
+          const n = repartition[i];
+          carte.querySelector('.culture-compteur').textContent = n + ' joueur' + (n > 1 ? 's' : '');
+        });
+
+        const gagnants = detail.filter((d) => d.correct);
+        document.getElementById('culture-bilan').textContent = gagnants.length === 0
+          ? 'Personne n\'a trouvé !'
+          : 'Bonne réponse : ' + gagnants.map((d) => d.pseudo + ' (+' + d.points + ')').join(', ');
+
+        afficherListeClassement(classement, false);
+      });
+
+      // 4. Classement final avec les pièces gagnées
+      socket.on('culture-classement', ({ classement }) => {
+        clearInterval(chrono);
+        afficherCulture();
+        viderCulture();
+        document.getElementById('culture-entete').textContent = 'Quiz terminé !';
+        document.getElementById('culture-question').textContent = 'Classement final';
+        afficherListeClassement(classement, true);
+      });
+
+      // Le tour suivant démarre : on revient au plateau
+      socket.on('tour', () => {
+        document.getElementById('culture').hidden = true;
+      });
+
       socket.on('fin-de-partie', ({ classement }) => {
         document.getElementById('jeu').hidden = true;
         document.getElementById('quiz').hidden = true;
+        document.getElementById('culture').hidden = true; // [AJOUT]
         clearInterval(chrono);
         document.getElementById('fin').hidden = false;
 

@@ -322,3 +322,126 @@ li {
 .bleue  { background: #6ab0ff; }
 .rouge  { background: #ff7b7b; }
 .etoile { background: #ffd166; }
+
+/* ── [AJOUT] Mini-jeu 2 : quiz de culture générale (façon Kahoot) ── */
+
+.culture-question {
+  font-size: 2.6rem;
+  max-width: 1000px;
+  margin: 1rem auto;
+}
+
+.culture-chrono {
+  font-size: 3rem;
+  color: #ffd166;
+  min-height: 3.5rem;
+  margin: 0.5rem 0;
+}
+
+/* 4 réponses en grille 2 × 2 */
+.culture-grille {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin: 1rem auto;
+}
+
+.culture-grille-hote {
+  max-width: 1100px;
+}
+
+/* Les boutons du téléphone : gros, faciles à toucher */
+.culture-bouton {
+  max-width: none;
+  min-height: 28vh;
+  margin: 0;
+  color: white;
+  font-size: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  white-space: normal;
+}
+
+/* Les cartes de l'écran principal */
+.culture-carte {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem 1.5rem;
+  border-radius: 10px;
+  font-size: 1.8rem;
+  font-weight: bold;
+  text-align: left;
+  color: white;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.culture-carte-texte {
+  flex: 1;
+}
+
+.culture-compteur {
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
+/* Couleurs façon Kahoot (le texte reste blanc, même sur le bouton désactivé) */
+.culture-rouge { background: #e21b3c; }
+.culture-bleu  { background: #1368ce; }
+.culture-jaune { background: #d89e00; }
+.culture-vert  { background: #26890c; }
+
+.culture-bouton:disabled { color: white; cursor: default; }
+.culture-bouton.culture-rouge:disabled { background: #e21b3c; }
+.culture-bouton.culture-bleu:disabled  { background: #1368ce; }
+.culture-bouton.culture-jaune:disabled { background: #d89e00; }
+.culture-bouton.culture-vert:disabled  { background: #26890c; }
+
+/* Le bouton choisi ressort, les autres s'effacent */
+.culture-choisi     { outline: 5px solid white; }
+.culture-pas-choisi { opacity: 0.25; }
+
+/* Correction sur l'écran principal */
+.culture-bonne    { outline: 6px solid white; transform: scale(1.03); }
+.culture-mauvaise { opacity: 0.3; }
+
+.culture-bilan {
+  font-size: 1.4rem;
+  min-height: 1.5rem;
+}
+
+/* Formes dessinées en CSS (pas d'emoji : même rendu sur tous les téléphones) */
+.forme {
+  display: inline-block;
+  width: 2.2rem;
+  height: 2.2rem;
+  background: white;
+  flex-shrink: 0;
+}
+.forme-triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.forme-losange  { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.forme-rond     { border-radius: 50%; }
+.forme-carre    { border-radius: 3px; }
+
+/* Résultat personnel sur le téléphone */
+.culture-resultat {
+  margin: 1.5rem auto;
+  padding: 1.5rem;
+  border-radius: 12px;
+  max-width: 400px;
+  font-size: 1.2rem;
+}
+.culture-correct { background: #26890c; }
+.culture-faux    { background: #e21b3c; }
+
+.culture-points {
+  font-size: 2.2rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+
+/* Pas de grand vide quand il n'y a pas de réponses à afficher (classement final) */
+.culture-grille:empty { display: none; }

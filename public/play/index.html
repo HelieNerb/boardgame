@@ -1,360 +1,496 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/style.css">
-  </head>
-  <body>
-    <div id="formulaire">
-      <h1>Mayo Party</h1>
-      <h1>Rejoindre une partie</h1>
-      <input id="code" placeholder="Code" maxlength="4"><br>
-      <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
-      <section class="avatar-editor" aria-labelledby="avatar-titre">
-        <h2 id="avatar-titre">Crée ton personnage</h2>
-        <div id="avatar-apercu" class="avatar-apercu" aria-live="polite"></div>
-        <p class="avatar-label">Couleur</p>
-        <div id="avatar-couleurs" class="avatar-couleurs"></div>
-        <div class="avatar-reglage">
-          <button type="button" aria-label="Yeux précédents" onclick="defilerAvatar('eyes', -1)">‹</button>
-          <span id="avatar-yeux"></span>
-          <button type="button" aria-label="Yeux suivants" onclick="defilerAvatar('eyes', 1)">›</button>
-        </div>
-        <div class="avatar-reglage">
-          <button type="button" aria-label="Bouches précédentes" onclick="defilerAvatar('mouth', -1)">‹</button>
-          <span id="avatar-bouche"></span>
-          <button type="button" aria-label="Bouches suivantes" onclick="defilerAvatar('mouth', 1)">›</button>
-        </div>
-        <button type="button" class="avatar-aleatoire" onclick="avatarAleatoire()">🎲 Personnage aléatoire</button>
-      </section>
-      <button onclick="rejoindre()">Rejoindre</button>
-    </div>
 
-    <p id="message" class="message"></p>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+</head>
 
-    <div id="jeu" hidden>
-      <p id="stats" class="stats"></p>
-      <p id="statut-tour" class="statut-tour"></p>
-      <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
-      <p id="de"></p>
-    </div>
-
-    <div id="quiz" hidden>
-      <div id="quiz-ecriture" hidden>
-        <h2>Écris un titre drôle !</h2>
-        <p>Regarde l'image sur l'écran principal</p>
-        <input id="quiz-texte" placeholder="Ton titre..." maxlength="100" autocomplete="off"><br>
-        <button id="quiz-envoyer" onclick="envoyerTitre()">Envoyer</button>
+<body>
+  <div id="formulaire">
+    <h1>Mayo Party</h1>
+    <h1>Rejoindre une partie</h1>
+    <input id="code" placeholder="Code" maxlength="4"><br>
+    <input id="pseudo" placeholder="Pseudo" maxlength="16"><br>
+    <section class="avatar-editor" aria-labelledby="avatar-titre">
+      <h2 id="avatar-titre">Crée ton personnage</h2>
+      <div id="avatar-apercu" class="avatar-apercu" aria-live="polite"></div>
+      <p class="avatar-label">Couleur</p>
+      <div id="avatar-couleurs" class="avatar-couleurs"></div>
+      <div class="avatar-reglage">
+        <button type="button" aria-label="Yeux précédents" onclick="defilerAvatar('eyes', -1)">‹</button>
+        <span id="avatar-yeux"></span>
+        <button type="button" aria-label="Yeux suivants" onclick="defilerAvatar('eyes', 1)">›</button>
       </div>
-
-      <div id="quiz-vote" hidden>
-        <h2>Vote pour le plus drôle !</h2>
-        <div id="quiz-choix"></div>
+      <div class="avatar-reglage">
+        <button type="button" aria-label="Bouches précédentes" onclick="defilerAvatar('mouth', -1)">‹</button>
+        <span id="avatar-bouche"></span>
+        <button type="button" aria-label="Bouches suivantes" onclick="defilerAvatar('mouth', 1)">›</button>
       </div>
+      <button type="button" class="avatar-aleatoire" onclick="avatarAleatoire()">🎲 Personnage aléatoire</button>
+    </section>
+    <button onclick="rejoindre()">Rejoindre</button>
+  </div>
 
-      <p id="quiz-message" class="message"></p>
+  <p id="message" class="message"></p>
+
+  <div id="jeu" hidden>
+    <p id="stats" class="stats"></p>
+    <p id="statut-tour" class="statut-tour"></p>
+    <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
+    <p id="de"></p>
+  </div>
+
+  <div id="quiz" hidden>
+    <div id="quiz-ecriture" hidden>
+      <h2>Écris un titre drôle !</h2>
+      <p>Regarde l'image sur l'écran principal</p>
+      <input id="quiz-texte" placeholder="Ton titre..." maxlength="100" autocomplete="off"><br>
+      <button id="quiz-envoyer" onclick="envoyerTitre()">Envoyer</button>
     </div>
 
-    <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
-      <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
-      <p id="texte-etoile"></p>
-      <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
-      <button onclick="choisirEtoile(false)">Renoncer</button>
+    <div id="quiz-vote" hidden>
+      <h2>Vote pour le plus drôle !</h2>
+      <div id="quiz-choix"></div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/avatar.js"></script>
-    <script>
-      const socket = io();
-      let monPseudo = null;
+    <p id="quiz-message" class="message"></p>
+  </div>
 
-      const CLE_AVATAR = 'mayo-party-avatar';
-      function lireAvatar() {
-        try { return JSON.parse(localStorage.getItem(CLE_AVATAR)); } catch (e) { return null; }
+  <!-- [AJOUT] Mini-jeu 2 : quiz de culture générale -->
+  <div id="culture" hidden>
+    <p id="culture-entete" class="statut-tour"></p>
+    <h2 id="culture-consigne"></h2>
+    <div id="culture-boutons" class="culture-grille"></div>
+    <div id="culture-resultat" class="culture-resultat" hidden></div>
+    <p id="culture-message" class="message"></p>
+  </div>
+
+  <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
+    <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
+    <p id="texte-etoile"></p>
+    <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
+    <button onclick="choisirEtoile(false)">Renoncer</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/avatar.js"></script>
+  <script>
+    const socket = io();
+    let monPseudo = null;
+
+    const CLE_AVATAR = 'mayo-party-avatar';
+    function lireAvatar() {
+      try { return JSON.parse(localStorage.getItem(CLE_AVATAR)); } catch (e) { return null; }
+    }
+    let avatarCourant = MayoAvatar.normaliser(lireAvatar());
+
+    function enregistrerAvatar() {
+      try { localStorage.setItem(CLE_AVATAR, JSON.stringify(avatarCourant)); } catch (e) { }
+    }
+
+    function afficherAvatar() {
+      const apercu = document.getElementById('avatar-apercu');
+      apercu.replaceChildren(MayoAvatar.creer(avatarCourant, 'avatar-sprite-grand'));
+      document.getElementById('avatar-yeux').textContent = MayoAvatar.optionLabel('eyes', avatarCourant.eyes);
+      document.getElementById('avatar-bouche').textContent = MayoAvatar.optionLabel('mouth', avatarCourant.mouth);
+
+      const couleurs = document.getElementById('avatar-couleurs');
+      couleurs.replaceChildren();
+      for (const couleur of MayoAvatar.options.color) {
+        const pastille = document.createElement('button');
+        pastille.type = 'button';
+        pastille.className = 'avatar-pastille' + (couleur.id === avatarCourant.color ? ' selectionnee' : '');
+        pastille.style.backgroundColor = couleur.hex;
+        pastille.setAttribute('aria-label', couleur.label);
+        pastille.setAttribute('aria-pressed', String(couleur.id === avatarCourant.color));
+        pastille.onclick = () => {
+          avatarCourant.color = couleur.id;
+          enregistrerAvatar();
+          afficherAvatar();
+        };
+        couleurs.appendChild(pastille);
       }
-      let avatarCourant = MayoAvatar.normaliser(lireAvatar());
+    }
 
-      function enregistrerAvatar() {
-        try { localStorage.setItem(CLE_AVATAR, JSON.stringify(avatarCourant)); } catch (e) {}
-      }
-
-      function afficherAvatar() {
-        const apercu = document.getElementById('avatar-apercu');
-        apercu.replaceChildren(MayoAvatar.creer(avatarCourant, 'avatar-sprite-grand'));
-        document.getElementById('avatar-yeux').textContent = MayoAvatar.optionLabel('eyes', avatarCourant.eyes);
-        document.getElementById('avatar-bouche').textContent = MayoAvatar.optionLabel('mouth', avatarCourant.mouth);
-
-        const couleurs = document.getElementById('avatar-couleurs');
-        couleurs.replaceChildren();
-        for (const couleur of MayoAvatar.options.color) {
-          const pastille = document.createElement('button');
-          pastille.type = 'button';
-          pastille.className = 'avatar-pastille' + (couleur.id === avatarCourant.color ? ' selectionnee' : '');
-          pastille.style.backgroundColor = couleur.hex;
-          pastille.setAttribute('aria-label', couleur.label);
-          pastille.setAttribute('aria-pressed', String(couleur.id === avatarCourant.color));
-          pastille.onclick = () => {
-            avatarCourant.color = couleur.id;
-            enregistrerAvatar();
-            afficherAvatar();
-          };
-          couleurs.appendChild(pastille);
-        }
-      }
-
-      function defilerAvatar(groupe, sens) {
-        const options = MayoAvatar.options[groupe];
-        const index = options.findIndex((option) => option.id === avatarCourant[groupe]);
-        avatarCourant[groupe] = options[(index + sens + options.length) % options.length].id;
-        enregistrerAvatar();
-        afficherAvatar();
-      }
-
-      function avatarAleatoire() {
-        avatarCourant = MayoAvatar.aleatoire();
-        enregistrerAvatar();
-        afficherAvatar();
-      }
-
+    function defilerAvatar(groupe, sens) {
+      const options = MayoAvatar.options[groupe];
+      const index = options.findIndex((option) => option.id === avatarCourant[groupe]);
+      avatarCourant[groupe] = options[(index + sens + options.length) % options.length].id;
+      enregistrerAvatar();
       afficherAvatar();
+    }
 
-      const params = new URLSearchParams(window.location.search);
-      const codeFromUrl = params.get('code');
+    function avatarAleatoire() {
+      avatarCourant = MayoAvatar.aleatoire();
+      enregistrerAvatar();
+      afficherAvatar();
+    }
 
-      // ── Session : de quoi se reconnecter après une coupure ──
-      // On garde { code, pseudo, token } dans le localStorage du téléphone.
-      // (try/catch : le localStorage peut être bloqué, par exemple en navigation privée)
-      const CLE_SESSION = 'mayo-party-session';
+    afficherAvatar();
 
-      function lireSession() {
-        try { return JSON.parse(localStorage.getItem(CLE_SESSION)); } catch (e) { return null; }
-      }
-      function sauverSession(session) {
-        try { localStorage.setItem(CLE_SESSION, JSON.stringify(session)); } catch (e) {}
-      }
-      function effacerSession() {
-        try { localStorage.removeItem(CLE_SESSION); } catch (e) {}
-      }
+    const params = new URLSearchParams(window.location.search);
+    const codeFromUrl = params.get('code');
 
-      // 'connect' se déclenche à l'ouverture de la page ET à chaque reconnexion automatique
-      // de Socket.IO : dans les deux cas, si on a une session, on demande à retrouver sa place.
-      socket.on('connect', () => {
-        const session = lireSession();
-        if (!session) return;
+    // ── Session : de quoi se reconnecter après une coupure ──
+    // On garde { code, pseudo, token } dans le localStorage du téléphone.
+    // (try/catch : le localStorage peut être bloqué, par exemple en navigation privée)
+    const CLE_SESSION = 'mayo-party-session';
 
-        // Le QR code d'une AUTRE partie : l'ancienne session ne sert plus à rien
-        if (codeFromUrl && codeFromUrl.toUpperCase() !== session.code) {
-          effacerSession();
-          return;
-        }
-        socket.emit('reconnecter', { code: session.code, token: session.token });
-      });
+    function lireSession() {
+      try { return JSON.parse(localStorage.getItem(CLE_SESSION)); } catch (e) { return null; }
+    }
+    function sauverSession(session) {
+      try { localStorage.setItem(CLE_SESSION, JSON.stringify(session)); } catch (e) { }
+    }
+    function effacerSession() {
+      try { localStorage.removeItem(CLE_SESSION); } catch (e) { }
+    }
 
-      socket.on('disconnect', () => {
-        document.getElementById('message').textContent = 'Connexion perdue... reconnexion en cours';
-      });
+    // 'connect' se déclenche à l'ouverture de la page ET à chaque reconnexion automatique
+    // de Socket.IO : dans les deux cas, si on a une session, on demande à retrouver sa place.
+    socket.on('connect', () => {
+      const session = lireSession();
+      if (!session) return;
 
-      socket.on('reconnecte', ({ code, pseudo, demarree, joueurs }) => {
-        monPseudo = pseudo;
-        document.getElementById('formulaire').hidden = true;
-        document.getElementById('message').textContent = demarree
-          ? 'Reconnecté, content de te revoir ' + pseudo + ' !'
-          : 'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
-
-        if (demarree) {
-          document.getElementById('jeu').hidden = false;
-          afficherStats(joueurs);
-        }
-      });
-
-      // La partie n'existe plus, ou le joueur en a été retiré (trop longtemps absent)
-      socket.on('reconnexion-refusee', () => {
-        const dejaAffiche = document.getElementById('formulaire').hidden;
+      // Le QR code d'une AUTRE partie : l'ancienne session ne sert plus à rien
+      if (codeFromUrl && codeFromUrl.toUpperCase() !== session.code) {
         effacerSession();
-        if (!dejaAffiche) {
-          // L'écran montrait la partie : on revient au formulaire avec une explication
-          monPseudo = null;
-          document.getElementById('formulaire').hidden = false;
-          document.getElementById('jeu').hidden = true;
-          document.getElementById('quiz').hidden = true;
-          document.getElementById('message').textContent =
-            'Tu n\'es plus dans cette partie. Tu peux la rejoindre à nouveau si elle n\'a pas commencé.';
-        }
-      });
-
-      if (codeFromUrl) {
-        const champCode = document.getElementById('code');
-        champCode.value = codeFromUrl.toUpperCase();
-        // Donne directement le focus au pseudo pour que le joueur n'ait plus qu'à taper son nom
-        document.getElementById('pseudo').focus();
+        return;
       }
+      socket.emit('reconnecter', { code: session.code, token: session.token });
+    });
 
-      function rejoindre() {
-        socket.emit('rejoindre', {
-          code: document.getElementById('code').value,
-          pseudo: document.getElementById('pseudo').value,
-          avatar: avatarCourant,
-        });
-      }
+    socket.on('disconnect', () => {
+      document.getElementById('message').textContent = 'Connexion perdue... reconnexion en cours';
+    });
 
-      function lancerDe() {
-        // On désactive tout de suite : un seul lancer par tour
-        document.getElementById('bouton-de').disabled = true;
-        socket.emit('lancer-de');
-      }
+    socket.on('reconnecte', ({ code, pseudo, demarree, joueurs }) => {
+      monPseudo = pseudo;
+      document.getElementById('formulaire').hidden = true;
+      document.getElementById('message').textContent = demarree
+        ? 'Reconnecté, content de te revoir ' + pseudo + ' !'
+        : 'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
 
-      function choisirEtoile(acheter) {
-        document.getElementById('choix-etoile').hidden = true;
-        socket.emit('choix-etoile', { acheter });
-      }
-
-      socket.on('rejoint', ({ code, pseudo, token }) => {
-        monPseudo = pseudo;
-        sauverSession({ code, pseudo, token });
-        document.getElementById('formulaire').hidden = true;
-        document.getElementById('message').textContent =
-          'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
-      });
-
-      socket.on('erreur', (texte) => {
-        document.getElementById('message').textContent = texte;
-      });
-
-      socket.on('partie-demarree', () => {
-        document.getElementById('message').textContent = 'La partie a commencé !';
+      if (demarree) {
         document.getElementById('jeu').hidden = false;
+        afficherStats(joueurs);
+      }
+    });
+
+    // La partie n'existe plus, ou le joueur en a été retiré (trop longtemps absent)
+    socket.on('reconnexion-refusee', () => {
+      const dejaAffiche = document.getElementById('formulaire').hidden;
+      effacerSession();
+      if (!dejaAffiche) {
+        // L'écran montrait la partie : on revient au formulaire avec une explication
+        monPseudo = null;
+        document.getElementById('formulaire').hidden = false;
+        document.getElementById('jeu').hidden = true;
+        document.getElementById('quiz').hidden = true;
+        document.getElementById('culture').hidden = true; // [AJOUT]
+        document.getElementById('message').textContent =
+          'Tu n\'es plus dans cette partie. Tu peux la rejoindre à nouveau si elle n\'a pas commencé.';
+      }
+    });
+
+    if (codeFromUrl) {
+      const champCode = document.getElementById('code');
+      champCode.value = codeFromUrl.toUpperCase();
+      // Donne directement le focus au pseudo pour que le joueur n'ait plus qu'à taper son nom
+      document.getElementById('pseudo').focus();
+    }
+
+    function rejoindre() {
+      socket.emit('rejoindre', {
+        code: document.getElementById('code').value,
+        pseudo: document.getElementById('pseudo').value,
+        avatar: avatarCourant,
       });
+    }
 
-      socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
-        document.getElementById('choix-etoile').hidden = true;
-        const monTour = joueurActif === monPseudo;
-        // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
-        document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
-        document.getElementById('de').textContent = '';
-        document.getElementById('statut-tour').textContent = monTour
-          ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
-          : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
-      });
+    function lancerDe() {
+      // On désactive tout de suite : un seul lancer par tour
+      document.getElementById('bouton-de').disabled = true;
+      socket.emit('lancer-de');
+    }
 
-      socket.on('resultat-de', (de) => {
-        document.getElementById('de').textContent = 'Tu as fait ' + de;
-      });
+    function choisirEtoile(acheter) {
+      document.getElementById('choix-etoile').hidden = true;
+      socket.emit('choix-etoile', { acheter });
+    }
 
-      socket.on('demande-achat-etoile', ({ pseudo, pieces, prix, pasRestants }) => {
-        if (pseudo !== monPseudo) return;
+    socket.on('rejoint', ({ code, pseudo, token }) => {
+      monPseudo = pseudo;
+      sauverSession({ code, pseudo, token });
+      document.getElementById('formulaire').hidden = true;
+      document.getElementById('message').textContent =
+        'Salut ' + pseudo + ' ! En attente du début de la partie (' + code + ')';
+    });
 
-        const peutAcheter = pieces >= prix;
-        document.getElementById('texte-etoile').textContent = peutAcheter
-          ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
-          : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
-        document.getElementById('acheter-etoile').disabled = !peutAcheter;
-        document.getElementById('choix-etoile').hidden = false;
-        document.getElementById('de').textContent = pasRestants > 1
-          ? 'Déplacement en pause : ' + (pasRestants - 1) + ' case(s) restante(s) après ton choix.'
-          : 'Déplacement en pause sur la dernière case.';
-      });
+    socket.on('erreur', (texte) => {
+      document.getElementById('message').textContent = texte;
+    });
 
-      // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné
-      socket.on('effet-case', ({ pseudo, message }) => {
-        if (pseudo === monPseudo) {
-          document.getElementById('de').textContent += ' — ' + message;
-        }
-      });
+    socket.on('partie-demarree', () => {
+      document.getElementById('message').textContent = 'La partie a commencé !';
+      document.getElementById('jeu').hidden = false;
+    });
 
-      // On retrouve ses propres compteurs dans la liste de tous les joueurs
-      function afficherStats(joueurs) {
-        const moi = joueurs.find((j) => j.pseudo === monPseudo);
-        if (moi) {
-          document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
-        }
+    socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
+      document.getElementById('choix-etoile').hidden = true;
+      const monTour = joueurActif === monPseudo;
+      // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
+      document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
+      document.getElementById('de').textContent = '';
+      document.getElementById('statut-tour').textContent = monTour
+        ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
+        : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
+    });
+
+    socket.on('resultat-de', (de) => {
+      document.getElementById('de').textContent = 'Tu as fait ' + de;
+    });
+
+    socket.on('demande-achat-etoile', ({ pseudo, pieces, prix, pasRestants }) => {
+      if (pseudo !== monPseudo) return;
+
+      const peutAcheter = pieces >= prix;
+      document.getElementById('texte-etoile').textContent = peutAcheter
+        ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
+        : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
+      document.getElementById('acheter-etoile').disabled = !peutAcheter;
+      document.getElementById('choix-etoile').hidden = false;
+      document.getElementById('de').textContent = pasRestants > 1
+        ? 'Déplacement en pause : ' + (pasRestants - 1) + ' case(s) restante(s) après ton choix.'
+        : 'Déplacement en pause sur la dernière case.';
+    });
+
+    // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné
+    socket.on('effet-case', ({ pseudo, message }) => {
+      if (pseudo === monPseudo) {
+        document.getElementById('de').textContent += ' — ' + message;
+      }
+    });
+
+    // On retrouve ses propres compteurs dans la liste de tous les joueurs
+    function afficherStats(joueurs) {
+      const moi = joueurs.find((j) => j.pseudo === monPseudo);
+      if (moi) {
+        document.getElementById('stats').textContent = moi.pieces + ' 🪙 — ' + moi.etoiles + ' ⭐';
+      }
+    }
+
+    // À chaque mise à jour des positions, et dès le début de la partie
+    socket.on('positions', afficherStats);
+    socket.on('partie-demarree', ({ joueurs }) => afficherStats(joueurs));
+
+    // ── Mini-jeu : quiz du titre drôle ──────────
+
+    let monIdQuiz = null; // l'id de mon propre titre (je ne peux pas voter pour lui)
+
+    function afficherQuiz(partie) {
+      // partie : 'ecriture', 'vote' ou null pour tout masquer
+      document.getElementById('quiz').hidden = partie === null;
+      document.getElementById('quiz-ecriture').hidden = partie !== 'ecriture';
+      document.getElementById('quiz-vote').hidden = partie !== 'vote';
+      document.getElementById('jeu').hidden = partie !== null;
+    }
+
+    function envoyerTitre() {
+      const champ = document.getElementById('quiz-texte');
+      if (champ.value.trim() === '') return;
+      socket.emit('quiz-reponse', champ.value);
+      // On verrouille tout de suite ; le serveur confirme avec 'quiz-reponse-ok'
+      champ.disabled = true;
+      document.getElementById('quiz-envoyer').disabled = true;
+    }
+
+    socket.on('quiz-ecriture', ({ dejaRepondu } = {}) => {
+      const champ = document.getElementById('quiz-texte');
+      champ.value = '';
+      champ.disabled = !!dejaRepondu;
+      document.getElementById('quiz-envoyer').disabled = !!dejaRepondu;
+      document.getElementById('quiz-message').textContent =
+        dejaRepondu ? 'Titre envoyé ! On attend les autres...' : '';
+      monIdQuiz = null;
+      afficherQuiz('ecriture');
+    });
+
+    socket.on('quiz-reponse-ok', () => {
+      document.getElementById('quiz-message').textContent = 'Titre envoyé ! On attend les autres...';
+    });
+
+    socket.on('quiz-mon-id', ({ id }) => {
+      monIdQuiz = id;
+    });
+
+    socket.on('quiz-vote', ({ propositions, dejaVote }) => {
+      afficherQuiz('vote');
+      document.getElementById('quiz-message').textContent = dejaVote ? 'Vote enregistré !' : '';
+      const div = document.getElementById('quiz-choix');
+      div.innerHTML = '';
+      for (const p of propositions) {
+        if (p.id === monIdQuiz) continue; // pas de vote pour soi (le serveur vérifie aussi)
+        const bouton = document.createElement('button');
+        bouton.className = 'choix';
+        bouton.textContent = p.texte;
+        bouton.disabled = !!dejaVote; // déjà voté avant la coupure : on ne peut pas revoter
+        bouton.onclick = () => {
+          socket.emit('quiz-vote', p.id);
+          for (const b of div.querySelectorAll('button')) b.disabled = true;
+        };
+        div.appendChild(bouton);
+      }
+      if (div.children.length === 0) {
+        document.getElementById('quiz-message').textContent = 'Personne d\'autre n\'a écrit de titre...';
+      }
+    });
+
+    socket.on('quiz-vote-ok', () => {
+      document.getElementById('quiz-message').textContent = 'Vote enregistré !';
+    });
+
+    socket.on('quiz-resultats', ({ gagnants, pieces }) => {
+      afficherQuiz('vote');
+      document.getElementById('quiz-choix').innerHTML = '';
+      document.getElementById('quiz-message').textContent = gagnants.includes(monPseudo)
+        ? '🏆 Ton titre a gagné ! +' + pieces + ' 🪙'
+        : 'Regarde les résultats sur l\'écran principal';
+    });
+
+    // Le tour suivant démarre : on revient au dé
+    socket.on('tour', () => afficherQuiz(null));
+
+    socket.on('fin-de-partie', () => {
+      afficherQuiz(null);
+      afficherCulture(false); // [AJOUT]
+      document.getElementById('bouton-de').disabled = true;
+      document.getElementById('statut-tour').textContent = 'La partie est terminée !';
+    });
+
+    // ── [AJOUT] Mini-jeu : quiz de culture générale (façon Kahoot) ──
+
+    // Affiche (ou masque) l'écran du quiz culture
+    function afficherCulture(visible) {
+      document.getElementById('culture').hidden = !visible;
+      if (visible) {
+        document.getElementById('jeu').hidden = true;
+        document.getElementById('quiz').hidden = true;
+      }
+    }
+
+    // Remet l'écran du quiz culture à zéro avant chaque nouvelle étape
+    function viderCulture() {
+      document.getElementById('culture-consigne').textContent = '';
+      document.getElementById('culture-boutons').innerHTML = '';
+      document.getElementById('culture-resultat').hidden = true;
+      document.getElementById('culture-message').textContent = '';
+    }
+
+    function texteEntete(numero, total, categorie) {
+      return 'Question ' + numero + '/' + total + ' — ' + categorie;
+    }
+
+    // 1er, 2e, 3e...
+    function texteRang(rang) {
+      return rang + (rang === 1 ? 'er' : 'e');
+    }
+
+    // La question est affichée sur l'écran principal, les boutons n'apparaissent pas encore
+    socket.on('culture-lecture', ({ numero, total, categorie }) => {
+      afficherCulture(true);
+      viderCulture();
+      document.getElementById('culture-entete').textContent = texteEntete(numero, total, categorie);
+      document.getElementById('culture-consigne').textContent = 'Regarde l\'écran !';
+    });
+
+    // Les 4 boutons apparaissent (dejaRepondu : envoyé seulement à un joueur qui se reconnecte)
+    socket.on('culture-question', ({ numero, total, categorie, reponses, dejaRepondu }) => {
+      afficherCulture(true);
+      viderCulture();
+      document.getElementById('culture-entete').textContent = texteEntete(numero, total, categorie);
+      document.getElementById('culture-consigne').textContent = 'Choisis ta réponse !';
+
+      const div = document.getElementById('culture-boutons');
+      for (const r of reponses) {
+        const bouton = document.createElement('button');
+        bouton.className = 'culture-bouton culture-' + r.couleur;
+
+        const forme = document.createElement('span');
+        forme.className = 'forme forme-' + r.forme;
+        const texte = document.createElement('span');
+        texte.textContent = r.texte;
+
+        bouton.append(forme, texte);
+        bouton.onclick = () => choisirReponse(r.id);
+        div.appendChild(bouton);
       }
 
-      // À chaque mise à jour des positions, et dès le début de la partie
-      socket.on('positions', afficherStats);
-      socket.on('partie-demarree', ({ joueurs }) => afficherStats(joueurs));
-
-      // ── Mini-jeu : quiz du titre drôle ──────────
-
-      let monIdQuiz = null; // l'id de mon propre titre (je ne peux pas voter pour lui)
-
-      function afficherQuiz(partie) {
-        // partie : 'ecriture', 'vote' ou null pour tout masquer
-        document.getElementById('quiz').hidden = partie === null;
-        document.getElementById('quiz-ecriture').hidden = partie !== 'ecriture';
-        document.getElementById('quiz-vote').hidden = partie !== 'vote';
-        document.getElementById('jeu').hidden = partie !== null;
+      if (dejaRepondu !== null && dejaRepondu !== undefined) {
+        marquerChoix(dejaRepondu);
+        document.getElementById('culture-message').textContent = 'Réponse envoyée ! On attend les autres...';
       }
+    });
 
-      function envoyerTitre() {
-        const champ = document.getElementById('quiz-texte');
-        if (champ.value.trim() === '') return;
-        socket.emit('quiz-reponse', champ.value);
-        // On verrouille tout de suite ; le serveur confirme avec 'quiz-reponse-ok'
-        champ.disabled = true;
-        document.getElementById('quiz-envoyer').disabled = true;
-      }
+    function choisirReponse(index) {
+      socket.emit('culture-reponse', index);
+      marquerChoix(index); // on verrouille tout de suite : une seule réponse possible
+    }
 
-      socket.on('quiz-ecriture', ({ dejaRepondu } = {}) => {
-        const champ = document.getElementById('quiz-texte');
-        champ.value = '';
-        champ.disabled = !!dejaRepondu;
-        document.getElementById('quiz-envoyer').disabled = !!dejaRepondu;
-        document.getElementById('quiz-message').textContent =
-          dejaRepondu ? 'Titre envoyé ! On attend les autres...' : '';
-        monIdQuiz = null;
-        afficherQuiz('ecriture');
+    // Désactive tous les boutons et fait ressortir celui qui a été choisi
+    function marquerChoix(index) {
+      const boutons = document.querySelectorAll('#culture-boutons button');
+      boutons.forEach((b, i) => {
+        b.disabled = true;
+        b.classList.toggle('culture-choisi', i === index);
+        b.classList.toggle('culture-pas-choisi', i !== index);
       });
+    }
 
-      socket.on('quiz-reponse-ok', () => {
-        document.getElementById('quiz-message').textContent = 'Titre envoyé ! On attend les autres...';
-      });
+    socket.on('culture-reponse-ok', () => {
+      document.getElementById('culture-message').textContent = 'Réponse envoyée ! On attend les autres...';
+    });
 
-      socket.on('quiz-mon-id', ({ id }) => {
-        monIdQuiz = id;
-      });
+    // Après chaque question : mon résultat personnel (correct ? combien de points ? quelle place ?)
+    socket.on('culture-mon-resultat', ({ repondu, correct, points, score, rang }) => {
+      afficherCulture(true);
+      viderCulture();
 
-      socket.on('quiz-vote', ({ propositions, dejaVote }) => {
-        afficherQuiz('vote');
-        document.getElementById('quiz-message').textContent = dejaVote ? 'Vote enregistré !' : '';
-        const div = document.getElementById('quiz-choix');
-        div.innerHTML = '';
-        for (const p of propositions) {
-          if (p.id === monIdQuiz) continue; // pas de vote pour soi (le serveur vérifie aussi)
-          const bouton = document.createElement('button');
-          bouton.className = 'choix';
-          bouton.textContent = p.texte;
-          bouton.disabled = !!dejaVote; // déjà voté avant la coupure : on ne peut pas revoter
-          bouton.onclick = () => {
-            socket.emit('quiz-vote', p.id);
-            for (const b of div.querySelectorAll('button')) b.disabled = true;
-          };
-          div.appendChild(bouton);
-        }
-        if (div.children.length === 0) {
-          document.getElementById('quiz-message').textContent = 'Personne d\'autre n\'a écrit de titre...';
-        }
-      });
+      const div = document.getElementById('culture-resultat');
+      div.className = 'culture-resultat ' + (correct ? 'culture-correct' : 'culture-faux');
+      div.innerHTML = '';
 
-      socket.on('quiz-vote-ok', () => {
-        document.getElementById('quiz-message').textContent = 'Vote enregistré !';
-      });
+      const titre = document.createElement('h2');
+      titre.textContent = correct ? 'Correct !' : repondu ? 'Raté...' : 'Trop tard !';
+      const gain = document.createElement('p');
+      gain.className = 'culture-points';
+      gain.textContent = '+' + points + ' points';
+      const total = document.createElement('p');
+      total.textContent = 'Total : ' + score + ' points — ' + texteRang(rang) + ' place';
 
-      socket.on('quiz-resultats', ({ gagnants, pieces }) => {
-        afficherQuiz('vote');
-        document.getElementById('quiz-choix').innerHTML = '';
-        document.getElementById('quiz-message').textContent = gagnants.includes(monPseudo)
-          ? '🏆 Ton titre a gagné ! +' + pieces + ' 🪙'
-          : 'Regarde les résultats sur l\'écran principal';
-      });
+      div.append(titre, gain, total);
+      div.hidden = false;
+    });
 
-      // Le tour suivant démarre : on revient au dé
-      socket.on('tour', () => afficherQuiz(null));
+    // Fin du quiz : ma place finale et les pièces gagnées
+    socket.on('culture-classement', ({ classement }) => {
+      afficherCulture(true);
+      viderCulture();
+      document.getElementById('culture-entete').textContent = 'Quiz terminé !';
 
-      socket.on('fin-de-partie', () => {
-        afficherQuiz(null);
-        document.getElementById('bouton-de').disabled = true;
-        document.getElementById('statut-tour').textContent = 'La partie est terminée !';
-      });
-    </script>
-  </body>
+      const moi = classement.find((l) => l.pseudo === monPseudo);
+      if (!moi) return;
+      document.getElementById('culture-consigne').textContent =
+        'Tu finis ' + texteRang(moi.rang) + ' avec ' + moi.score + ' points';
+      document.getElementById('culture-message').textContent = moi.pieces > 0
+        ? 'Bravo, tu gagnes ' + moi.pieces + ' 🪙 !'
+        : 'Regarde le classement sur l\'écran principal';
+    });
+
+    // Le tour suivant démarre : on quitte le quiz culture (le dé est réaffiché par afficherQuiz)
+    socket.on('tour', () => afficherCulture(false));
+  </script>
+</body>
+
 </html>
