@@ -19,7 +19,10 @@
 
       <h3>Joueurs</h3>
       <ul id="liste"></ul>
-      <button onclick="socket.emit('demarrer')">Démarrer la partie</button>
+      <label for="nb-tours">Nombre de tours</label><br>
+      <input id="nb-tours" type="number" min="5" max="50" step="1" value="15">
+      <p id="estimation-duree" class="message" aria-live="polite"></p>
+      <button onclick="demarrerPartie()">Démarrer la partie</button>
     </div>
 
     <div id="jeu" hidden>
@@ -55,11 +58,39 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/avatar.js"></script>
     <script>
       const socket = io();
       let plateau = [];
       let joueurs = [];
       let pseudoActif = null;
+
+      const champNbTours = document.getElementById('nb-tours');
+      champNbTours.addEventListener('input', afficherEstimationDuree);
+
+      function afficherEstimationDuree() {
+        const nbTours = Number(champNbTours.value);
+        const estimation = document.getElementById('estimation-duree');
+
+        if (!Number.isInteger(nbTours) || nbTours < 5 || nbTours > 50) {
+          estimation.textContent = 'Choisis entre 5 et 50 tours.';
+          return;
+        }
+
+        // Repère indicatif : 15 tours correspondent à environ 20 minutes.
+        const minutes = Math.round(nbTours * 80 / 60);
+        const duree = minutes < 60
+          ? minutes + ' min'
+          : Math.floor(minutes / 60) + ' h' + (minutes % 60 ? ' ' + (minutes % 60) + ' min' : '');
+        estimation.textContent = 'Durée estimée : ' + nbTours + ' tours ≈ ' + duree;
+      }
+
+      function demarrerPartie() {
+        if (!champNbTours.reportValidity()) return;
+        socket.emit('demarrer', { nbTours: Number(champNbTours.value) });
+      }
+
+      afficherEstimationDuree();
 
       socket.emit('creer-partie');
 
@@ -79,7 +110,11 @@
         ul.innerHTML = '';
         for (const joueur of liste) {
           const li = document.createElement('li');
-          li.textContent = joueur.pseudo + (joueur.connecte === false ? ' 💤' : '');
+          li.className = 'joueur-salon' + (joueur.connecte === false ? ' joueur-deconnecte' : '');
+          li.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-salon'));
+          const nom = document.createElement('span');
+          nom.textContent = joueur.pseudo + (joueur.connecte === false ? ' 💤' : '');
+          li.appendChild(nom);
           ul.appendChild(li);
         }
       });
@@ -145,7 +180,7 @@
         for (const p of propositions) {
           const carte = document.createElement('div');
           carte.className = 'proposition';
-          carte.textContent = p.texte; // textContent : le texte d'un joueur n'est jamais interprété comme du HTML
+          carte.textContent = p.texte;
           div.appendChild(carte);
         }
         lancerChrono(duree);
@@ -179,6 +214,11 @@
       socket.on('tour', () => {
         document.getElementById('quiz').hidden = true;
         document.getElementById('jeu').hidden = false;
+      });
+
+      socket.on('plateau-mis-a-jour', ({ plateau: nouveauPlateau }) => {
+        plateau = nouveauPlateau;
+        afficherPlateau();
       });
 
       socket.on('effet-case', ({ message }) => {
@@ -321,8 +361,11 @@
           carte.className = 'score'
             + (joueur.pseudo === pseudoActif ? ' score-actif' : '')
             + (joueur.connecte === false ? ' score-deconnecte' : '');
-          carte.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
+          carte.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-score'));
+          const infos = document.createElement('span');
+          infos.textContent = joueur.pseudo + ' — ' + joueur.pieces + ' 🪙 — ' + joueur.etoiles + ' ⭐'
             + (joueur.connecte === false ? ' 💤' : '');
+          carte.appendChild(infos);
           div.appendChild(carte);
         }
       }
@@ -368,16 +411,23 @@
           titre.textContent = type;
           caseDiv.appendChild(titre);
 
+          const pions = document.createElement('div');
+          pions.className = 'pions-case';
           for (const joueur of joueurs) {
             if (joueur.position === i) {
               const pion = document.createElement('div');
-              pion.textContent = joueur.pseudo;
-              if (joueur.pseudo === pseudoActif) {
-                pion.className = 'pion-actif';
-              }
-              caseDiv.appendChild(pion);
+              pion.className = 'pion-case'
+                + (joueur.pseudo === pseudoActif ? ' pion-actif' : '')
+                + (joueur.connecte === false ? ' pion-deconnecte' : '');
+              pion.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-plateau'));
+              const nom = document.createElement('span');
+              nom.className = 'pion-nom';
+              nom.textContent = joueur.pseudo;
+              pion.appendChild(nom);
+              pions.appendChild(pion);
             }
           }
+          if (pions.childElementCount) caseDiv.appendChild(pions);
 
           div.appendChild(caseDiv);
         });

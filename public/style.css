@@ -102,10 +102,150 @@ li {
 }
 
 .score {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   background: #3a4f86;
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 1.1rem;
+}
+
+.avatar-sprite {
+  display: block;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+}
+
+.avatar-editor {
+  max-width: 380px;
+  margin: 1.2rem auto;
+  padding: 1rem;
+  border: 2px solid #3a4f86;
+  border-radius: 16px;
+  background: #172544;
+}
+
+.avatar-editor h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.avatar-apercu {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  margin: 0.5rem auto;
+  border-radius: 12px;
+  background: #24365f;
+}
+
+.avatar-sprite-grand {
+  width: 112px;
+  height: 140px;
+  filter: drop-shadow(0 5px 0 #101a36);
+}
+
+.avatar-label {
+  margin: 0.6rem 0 0.2rem;
+  color: #c8d3f2;
+  font-weight: 700;
+}
+
+.avatar-couleurs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0.45rem 0 0.7rem;
+}
+
+.avatar-pastille {
+  width: 32px;
+  height: 32px;
+  max-width: none;
+  padding: 0;
+  border: 3px solid #ffffff66;
+  border-radius: 50%;
+}
+
+.avatar-pastille.selectionnee {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+
+.avatar-reglage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  margin: 0.3rem 0;
+  color: white;
+  font-weight: 700;
+}
+
+.avatar-reglage button {
+  width: 42px;
+  max-width: 42px;
+  padding: 0.2rem;
+  font-size: 1.8rem;
+  line-height: 1.4;
+}
+
+.avatar-aleatoire {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+}
+
+.joueur-salon {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 74px;
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+}
+
+.avatar-sprite-salon {
+  width: 46px;
+  height: 58px;
+  margin-bottom: 0.2rem;
+}
+
+.avatar-sprite-score {
+  width: 28px;
+  height: 35px;
+}
+
+.pions-case {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: end;
+  gap: 0.1rem;
+  margin-top: 0.15rem;
+}
+
+.pion-case {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 38px;
+  max-width: 50px;
+}
+
+.avatar-sprite-plateau {
+  width: 34px;
+  height: 43px;
+}
+
+.pion-nom {
+  max-width: 50px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.65rem;
+  line-height: 1.1;
 }
 
 .score-actif {
@@ -153,14 +293,36 @@ li {
 }
 
 .pion-actif {
-  text-decoration: underline;
-  font-size: 1.1em;
+  transform: translateY(-2px);
+  filter: drop-shadow(0 0 3px #ffd166);
+}
+
+.pion-deconnecte {
+  opacity: 0.55;
+}
+
+.dialogue-etoile {
+  position: fixed;
+  z-index: 10;
+  top: 50%;
+  left: 50%;
+  width: min(90vw, 420px);
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: #3a4f86;
+  box-shadow: 0 12px 40px #0008;
+  transform: translate(-50%, -50%);
+}
+
+.dialogue-etoile[hidden] {
+  display: none;
 }
 
 .depart { background: #ddd; }
 .bleue  { background: #6ab0ff; }
 .rouge  { background: #ff7b7b; }
 .etoile { background: #ffd166; }
+
 /* ── [AJOUT] Mini-jeu 2 : quiz de culture générale (façon Kahoot) ── */
 
 .culture-question {
