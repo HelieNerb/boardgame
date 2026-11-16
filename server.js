@@ -782,9 +782,23 @@ io.on('connection', (socket) => {
 });
 
 
-server.listen(PORT, () => {
-  console.log(`Serveur prêt :`);
-  console.log(`- Local : http://localhost:${PORT}`);
-  console.log(`- Réseau Wi-Fi : http://${LOCAL_IP}:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Serveur prêt :`);
+    console.log(`- Local : http://localhost:${PORT}`);
+    console.log(`- Réseau Wi-Fi : http://${LOCAL_IP}:${PORT}`);
+  });
+}
+
+module.exports = {
+  PLATEAU,
+  POSITIONS_ETOILE,
+  choisirPositionEtoile,
+  plateauAvecEtoile,
+  normaliserAvatar,
+  melanger,
+  piocherImage,
+  classement,
+  appliquerEffetCase,
+};
 
