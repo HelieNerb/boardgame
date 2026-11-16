@@ -1,0 +1,11 @@
+[hidden] { display: none !important; }
+details { max-width: 300px; margin: 1rem auto; }
+summary { cursor: pointer; }
+select { font: inherit; padding: .5rem; width: 100%; border-radius: 8px; }
+input[type="checkbox"] { width: auto; margin-right: .4rem; }
+.debug-players { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; }
+.debug-player { width: 300px; padding: 1rem; border: 1px solid #3a4f86; border-radius: 8px; }
+.player-meta { color: #ffd166; }
+table { margin: 1rem auto; max-width: 100%; }
+th, td { padding: .5rem; overflow-wrap: anywhere; }
+.selected { outline: 3px solid white; }
