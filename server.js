@@ -1,3 +1,4 @@
+// Guide de l'architecture et du rôle des fonctions : GUIDE_CODE.md.
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');

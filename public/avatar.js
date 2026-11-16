@@ -1,3 +1,4 @@
+// Outils de création et de validation des avatars; détails des fonctions dans GUIDE_CODE.md.
 (function () {
   const NS = 'http://www.w3.org/2000/svg';
   const options = {

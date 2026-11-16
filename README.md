@@ -17,3 +17,7 @@ npm test
 ```
 
 Ouvrir `http://localhost:3000` sur l'écran principal et choisir **Hôte**. Les joueurs scannent le QR code, sur le même réseau.
+
+## Comprendre le code
+
+Le [guide du code](GUIDE_CODE.md) explique l’organisation du projet, le déroulement d’une partie et le rôle des fonctions du serveur, des mini-jeux et des écrans web.

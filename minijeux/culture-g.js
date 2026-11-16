@@ -14,6 +14,7 @@
 //
 //  Points : bonne réponse = entre 1000 (réponse immédiate) et 500 (dernière
 //  seconde), comme dans Kahoot. Mauvaise réponse ou pas de réponse = 0.
+// Les fonctions et événements échangés sont détaillés dans GUIDE_CODE.md.
 // ─────────────────────────────────────────────
 
 const BANQUE = require('./questions/culture.json');
