@@ -11,4 +11,9 @@ npm install
 node server.js
 ```
  
+## Pour effectuer des tests unitaires : 
+```bash 
+npm test
+```
+
 Ouvrir `http://localhost:3000` sur l'écran principal et choisir **Hôte**. Les joueurs scannent le QR code, sur le même réseau.
