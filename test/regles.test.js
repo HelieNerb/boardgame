@@ -14,7 +14,7 @@ const {
 test('le plateau contient 24 cases et commence au départ', () => {
   assert.equal(PLATEAU.length, 24);
   assert.equal(PLATEAU[0], 'depart');
-  assert.ok(PLATEAU.every((type) => ['depart', 'bleue', 'rouge'].includes(type)));
+  assert.ok(PLATEAU.every((type) => ['depart', 'bleue', 'rouge', 'shop'].includes(type)));
 });
 
 test('la position de l’étoile évite sa position actuelle et les joueurs', () => {

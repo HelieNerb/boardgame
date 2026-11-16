@@ -7,7 +7,8 @@ body {
   padding: 2rem 16px;
 }
 
-input, button {
+input,
+button {
   font-size: 1.2rem;
   padding: 0.8rem;
   border: none;
@@ -318,10 +319,25 @@ li {
   display: none;
 }
 
-.depart { background: #ddd; }
-.bleue  { background: #6ab0ff; }
-.rouge  { background: #ff7b7b; }
-.etoile { background: #ffd166; }
+.depart {
+  background: #ddd;
+}
+
+.bleue {
+  background: #6ab0ff;
+}
+
+.rouge {
+  background: #ff7b7b;
+}
+
+.etoile {
+  background: #ffd166;
+}
+
+.shop {
+  background: #b388ff;
+}
 
 /* ── [AJOUT] Mini-jeu 2 : quiz de culture générale (façon Kahoot) ── */
 
@@ -389,24 +405,61 @@ li {
 }
 
 /* Couleurs façon Kahoot (le texte reste blanc, même sur le bouton désactivé) */
-.culture-rouge { background: #e21b3c; }
-.culture-bleu  { background: #1368ce; }
-.culture-jaune { background: #d89e00; }
-.culture-vert  { background: #26890c; }
+.culture-rouge {
+  background: #e21b3c;
+}
 
-.culture-bouton:disabled { color: white; cursor: default; }
-.culture-bouton.culture-rouge:disabled { background: #e21b3c; }
-.culture-bouton.culture-bleu:disabled  { background: #1368ce; }
-.culture-bouton.culture-jaune:disabled { background: #d89e00; }
-.culture-bouton.culture-vert:disabled  { background: #26890c; }
+.culture-bleu {
+  background: #1368ce;
+}
+
+.culture-jaune {
+  background: #d89e00;
+}
+
+.culture-vert {
+  background: #26890c;
+}
+
+.culture-bouton:disabled {
+  color: white;
+  cursor: default;
+}
+
+.culture-bouton.culture-rouge:disabled {
+  background: #e21b3c;
+}
+
+.culture-bouton.culture-bleu:disabled {
+  background: #1368ce;
+}
+
+.culture-bouton.culture-jaune:disabled {
+  background: #d89e00;
+}
+
+.culture-bouton.culture-vert:disabled {
+  background: #26890c;
+}
 
 /* Le bouton choisi ressort, les autres s'effacent */
-.culture-choisi     { outline: 5px solid white; }
-.culture-pas-choisi { opacity: 0.25; }
+.culture-choisi {
+  outline: 5px solid white;
+}
+
+.culture-pas-choisi {
+  opacity: 0.25;
+}
 
 /* Correction sur l'écran principal */
-.culture-bonne    { outline: 6px solid white; transform: scale(1.03); }
-.culture-mauvaise { opacity: 0.3; }
+.culture-bonne {
+  outline: 6px solid white;
+  transform: scale(1.03);
+}
+
+.culture-mauvaise {
+  opacity: 0.3;
+}
 
 .culture-bilan {
   font-size: 1.4rem;
@@ -421,10 +474,22 @@ li {
   background: white;
   flex-shrink: 0;
 }
-.forme-triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.forme-losange  { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-.forme-rond     { border-radius: 50%; }
-.forme-carre    { border-radius: 3px; }
+
+.forme-triangle {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.forme-losange {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.forme-rond {
+  border-radius: 50%;
+}
+
+.forme-carre {
+  border-radius: 3px;
+}
 
 /* Résultat personnel sur le téléphone */
 .culture-resultat {
@@ -434,8 +499,14 @@ li {
   max-width: 400px;
   font-size: 1.2rem;
 }
-.culture-correct { background: #26890c; }
-.culture-faux    { background: #e21b3c; }
+
+.culture-correct {
+  background: #26890c;
+}
+
+.culture-faux {
+  background: #e21b3c;
+}
 
 .culture-points {
   font-size: 2.2rem;
@@ -444,4 +515,6 @@ li {
 }
 
 /* Pas de grand vide quand il n'y a pas de réponses à afficher (classement final) */
-.culture-grille:empty { display: none; }
+.culture-grille:empty {
+  display: none;
+}

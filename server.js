@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { demarrerQuiz } = require('./minijeux/quiz');
 const { demarrerCulture } = require('./minijeux/culture-g'); // [AJOUT] mini-jeu 2
+const { genererOffre, acheter, utiliserItem } = require('./shop');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,7 +35,7 @@ const PORT = 3000;
 
 const PLATEAU = [
   'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
-  'bleue', 'bleue', 'rouge', 'bleue', 'bleue', 'rouge',
+  'bleue', 'bleue', 'rouge', 'shop', 'bleue', 'rouge',
   'bleue', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
   'bleue', 'bleue', 'rouge', 'bleue', 'rouge', 'bleue',
 ];
@@ -244,7 +245,26 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
     });
     return;
   }
-
+  // Case shop : on ouvre la boutique et on attend le choix du joueur.
+  if (pasRestants === 1 && PLATEAU[joueur.position] === 'shop') {
+    partie.phase = 'choix-shop';
+    partie.offreShop = genererOffre();
+    io.to(code).emit('positions', partie.joueurs);
+    io.to(code).emit('effet-case', {
+      pseudo,
+      type: 'shop',
+      message: `${pseudo} entre dans la boutique...`
+    });
+    const socketId = partie.sockets.get(pseudo);
+    if (socketId) {
+      io.to(socketId).emit('ouvrir-shop', {
+        offre: partie.offreShop,
+        pieces: joueur.pieces,
+        inventaire: joueur.inventaire
+      });
+    }
+    return;
+  }
   // L'effet s'applique uniquement sur la case d'arrivée, au dernier pas.
   if (pasRestants === 1) {
     const effet = appliquerEffetCase(partie, joueur);
@@ -486,7 +506,7 @@ io.on('connection', (socket) => {
     });
     const partie = parties.get(code);
     partie.etoilePosition = choisirPositionEtoile(partie);
-    
+
     socket.join(code);
     socket.data.codeHote = code;
 
@@ -535,6 +555,9 @@ io.on('connection', (socket) => {
       position: 0,
       pieces: PIECES_DEPART,
       etoiles: 0,
+      inventaire: [],
+      bonusDeplacement: 0,
+      bloqueProchainTour: false,
       connecte: true
     });
     socket.join(code);
@@ -631,9 +654,9 @@ io.on('connection', (socket) => {
     partie.indexActif = 0;
 
     io.to(code).emit('partie-demarree', {
-  plateau: plateauAvecEtoile(partie),
-  joueurs: partie.joueurs
-  });
+      plateau: plateauAvecEtoile(partie),
+      joueurs: partie.joueurs
+    });
 
     // Le premier joueur peut lancer dès le démarrage.
     demarrerTourJoueur(code);
@@ -649,15 +672,85 @@ io.on('connection', (socket) => {
     const joueur = joueurActif(partie);
     if (!joueur || joueur.pseudo !== socket.data.pseudo) return;
 
+    // Malus : le joueur ne bouge pas ce tour-ci
+    if (joueur.bloqueProchainTour) {
+      joueur.bloqueProchainTour = false;
+      partie.phase = 'deplacement';
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'malus',
+        message: `${joueur.pseudo} est bloqué et ne bouge pas ce tour-ci !`
+      });
+      partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
+      return;
+    }
+
     partie.phase = 'deplacement';
 
     const de = Math.floor(Math.random() * 6) + 1;
     socket.emit('resultat-de', de);
 
+    // Boost : on ajoute les cases bonus au dé, puis on les remet à zéro
+    const total = de + joueur.bonusDeplacement;
+    joueur.bonusDeplacement = 0;
+
     // Le déplacement et les effets sont traités case par case.
-    deplacerPasAPas(code, joueur.pseudo, de);
+    deplacerPasAPas(code, joueur.pseudo, total);
+  });
+  // Le joueur achète un objet de la boutique (ou ferme la boutique sans rien acheter)
+  socket.on('achat-shop', ({ itemId } = {}) => {
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    if (!partie || partie.phase !== 'choix-shop') return;
+    const joueur = joueurActif(partie);
+    if (!joueur || joueur.pseudo !== socket.data.pseudo) return;
+
+    if (itemId) {
+      const erreur = acheter(joueur, itemId, partie.offreShop);
+      if (erreur) {
+        socket.emit('erreur-shop', erreur);
+        return; // la boutique reste ouverte, le joueur peut choisir autre chose
+      }
+      const item = partie.offreShop.find(i => i.id === itemId);
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'shop',
+        message: `${joueur.pseudo} achète : ${item.nom} !`
+      });
+    } else {
+      io.to(code).emit('effet-case', {
+        pseudo: joueur.pseudo,
+        type: 'shop',
+        message: `${joueur.pseudo} ressort de la boutique sans rien acheter.`
+      });
+    }
+
+    partie.offreShop = null;
+    partie.phase = 'deplacement';
+    io.to(code).emit('positions', partie.joueurs);
+    partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
   });
 
+  // Le joueur actif utilise un objet avant de lancer le dé
+  socket.on('utiliser-objet', ({ itemId, cible } = {}) => {
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    if (!partie || partie.phase !== 'attente-de') return;
+    const joueur = joueurActif(partie);
+    if (!joueur || joueur.pseudo !== socket.data.pseudo) return;
+
+    const resultat = utiliserItem(partie.joueurs, joueur, itemId, cible);
+    if (!resultat.ok) {
+      socket.emit('erreur-shop', resultat.message);
+      return;
+    }
+    io.to(code).emit('effet-case', {
+      pseudo: joueur.pseudo,
+      type: 'objet',
+      message: resultat.message
+    });
+    io.to(code).emit('positions', partie.joueurs);
+  });
   socket.on('choix-etoile', ({ acheter } = {}) => {
     const code = socket.data.code;
     const partie = parties.get(code);
@@ -665,7 +758,7 @@ io.on('connection', (socket) => {
     const joueur = partie && joueurActif(partie);
 
     if (!partie || partie.phase !== 'choix-etoile' || !suspendu ||
-        !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
+      !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
 
     const achatAccepte = acheter === true && joueur.pieces >= PRIX_ETOILE;
     if (achatAccepte) {
