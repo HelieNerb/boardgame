@@ -1,4 +1,4 @@
-Mayo Party 🌭
+## Mayo Party 🌭
 
 Jeu de société multijoueur pas du tout inspiré de Mario Party. Un écran principal affiche le plateau, et chaque joueur participe avec son téléphone en scannant un QR code.
 
