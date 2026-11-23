@@ -39,6 +39,9 @@
     <p id="statut-tour" class="statut-tour"></p>
     <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
     <p id="de"></p>
+    <!-- Boutique : mes objets et le choix d'une cible -->
+    <div id="mes-objets"></div>
+    <div id="choix-cible" hidden></div>
   </div>
 
   <div id="quiz" hidden>
@@ -71,6 +74,14 @@
     <p id="texte-etoile"></p>
     <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
     <button onclick="choisirEtoile(false)">Renoncer</button>
+  </div>
+
+  <div id="boutique" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-boutique" hidden>
+    <h2 id="titre-boutique">Boutique 🛒</h2>
+    <p id="texte-boutique"></p>
+    <div id="offre-boutique"></div>
+    <button onclick="acheterObjet(null)">Ne rien acheter</button>
+    <p id="erreur-boutique" class="message"></p>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -287,6 +298,137 @@
     socket.on('partie-demarree', ({ joueurs }) => afficherStats(joueurs));
 
     // ── Mini-jeu : quiz du titre drôle ──────────
+    // ── Boutique ──────────
+    const OBJETS = {
+      boost5: { nom: 'Petit boost', cible: false },
+      boost10: { nom: 'Gros boost', cible: false },
+      malus: { nom: 'Malus', cible: true },
+      coffre: { nom: 'Coffre', cible: true },
+      pirate: { nom: 'Bateau pirate', cible: false },
+      voletoile: { nom: "Vol d'étoile", cible: true },
+    };
+
+    let derniersJoueurs = [];   // la dernière liste de joueurs reçue du serveur
+    let peutUtiliser = false;   // vrai seulement à mon tour, avant de lancer le dé
+
+    // Le serveur m'envoie les 3 objets quand je m'arrête sur la case shop
+    socket.on('ouvrir-shop', ({ offre, pieces, inventaire }) => {
+      document.getElementById('texte-boutique').textContent =
+        'Tu as ' + pieces + ' pièces et ' + inventaire.length + '/2 objets.';
+      document.getElementById('erreur-boutique').textContent = '';
+
+      const div = document.getElementById('offre-boutique');
+      div.innerHTML = '';
+      for (const item of offre) {
+        const bouton = document.createElement('button');
+        bouton.textContent = item.nom + ' — ' + item.prix + ' pièces';
+        bouton.disabled = pieces < item.prix || inventaire.length >= 2;
+        bouton.onclick = () => acheterObjet(item.id);
+        div.appendChild(bouton);
+      }
+      document.getElementById('boutique').hidden = false;
+    });
+
+    // itemId = null : on sort sans rien acheter
+    function acheterObjet(itemId) {
+      socket.emit('achat-shop', itemId ? { itemId } : {});
+    }
+
+    socket.on('effet-case', ({ pseudo, type }) => {
+      if (pseudo !== monPseudo) return;
+      // Le serveur confirme l'achat (ou la sortie) : on ferme la boutique
+      if (type === 'shop') document.getElementById('boutique').hidden = true;
+      // Bloqué par un malus : plus d'objet utilisable ce tour-ci
+      if (type === 'malus') { peutUtiliser = false; afficherObjets(); }
+    });
+
+    socket.on('erreur-shop', (texte) => {
+      if (!document.getElementById('boutique').hidden) {
+        document.getElementById('erreur-boutique').textContent = texte;
+      } else {
+        document.getElementById('de').textContent = texte;
+      }
+    });
+
+    // Affiche mes objets avec un bouton « Utiliser »
+    function afficherObjets() {
+      const div = document.getElementById('mes-objets');
+      div.innerHTML = '';
+      const moi = derniersJoueurs.find((j) => j.pseudo === monPseudo);
+      if (!moi || !moi.inventaire || moi.inventaire.length === 0) return;
+
+      const titre = document.createElement('p');
+      titre.textContent = 'Mes objets :';
+      div.appendChild(titre);
+
+      for (const itemId of moi.inventaire) {
+        const bouton = document.createElement('button');
+        bouton.textContent = 'Utiliser : ' + OBJETS[itemId].nom;
+        bouton.disabled = !peutUtiliser;
+        bouton.onclick = () => utiliserObjet(itemId);
+        div.appendChild(bouton);
+      }
+    }
+
+    function utiliserObjet(itemId) {
+      if (!OBJETS[itemId].cible) {
+        socket.emit('utiliser-objet', { itemId });
+        return;
+      }
+      // Objet avec cible : on propose les autres joueurs
+      const div = document.getElementById('choix-cible');
+      div.innerHTML = '';
+      const texte = document.createElement('p');
+      texte.textContent = OBJETS[itemId].nom + ' : sur qui ?';
+      div.appendChild(texte);
+
+      const cibles = derniersJoueurs.filter((j) =>
+        j.pseudo !== monPseudo && (itemId !== 'voletoile' || j.etoiles > 0));
+      for (const j of cibles) {
+        const bouton = document.createElement('button');
+        bouton.textContent = j.pseudo + ' (' + j.pieces + ' 🪙, ' + j.etoiles + ' ⭐)';
+        bouton.onclick = () => {
+          div.hidden = true;
+          socket.emit('utiliser-objet', { itemId, cible: j.pseudo });
+        };
+        div.appendChild(bouton);
+      }
+      if (cibles.length === 0) {
+        const vide = document.createElement('p');
+        vide.textContent = 'Personne ne peut être visé.';
+        div.appendChild(vide);
+      }
+      const annuler = document.createElement('button');
+      annuler.textContent = 'Annuler';
+      annuler.onclick = () => { div.hidden = true; };
+      div.appendChild(annuler);
+      div.hidden = false;
+    }
+
+    socket.on('positions', (joueurs) => {
+      derniersJoueurs = joueurs;
+      afficherObjets();
+    });
+
+    socket.on('partie-demarree', ({ joueurs }) => {
+      derniersJoueurs = joueurs;
+      afficherObjets();
+    });
+
+    // Début d'un tour : objets utilisables seulement si c'est à moi et que je n'ai pas lancé le dé
+    socket.on('tour', ({ joueurActif, peutLancer }) => {
+      peutUtiliser = joueurActif === monPseudo && peutLancer;
+      document.getElementById('boutique').hidden = true;
+      document.getElementById('choix-cible').hidden = true;
+      afficherObjets();
+    });
+
+    // Dès que le dé est lancé, on ne peut plus utiliser d'objet
+    socket.on('resultat-de', () => {
+      peutUtiliser = false;
+      document.getElementById('choix-cible').hidden = true;
+      afficherObjets();
+    });
 
     let monIdQuiz = null; // l'id de mon propre titre (je ne peux pas voter pour lui)
 
