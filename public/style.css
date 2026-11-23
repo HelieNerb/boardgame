@@ -373,6 +373,11 @@ li {
   background: #ffd166;
 }
 
+.case.choix {
+  background: #8567df;
+  color: #fff;
+}
+
 .shop {
   background: #b388ff;
 }
