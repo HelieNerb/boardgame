@@ -18,4 +18,3 @@ Ouvrir `http://localhost:3000` sur l'écran principal et choisir **Hôte**. Les 
 npm test
 ```
 
-Ouvrir `http://localhost:3000` sur l'écran principal et choisir **Hôte**. Les joueurs scannent le QR code, sur le même réseau.
