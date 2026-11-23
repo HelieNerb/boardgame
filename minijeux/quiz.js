@@ -8,6 +8,7 @@
 //                     chacun vote pour le plus drôle (sauf pour le sien)
 //    3. 'resultat'  → on révèle les auteurs, le(s) gagnant(s) reçoivent des pièces
 //    4. 'fini'      → on prévient server.js (onFin) qui passe au tour suivant
+// Les fonctions et événements échangés sont détaillés dans GUIDE_CODE.md.
 // ─────────────────────────────────────────────
 
 const DUREE_ECRITURE = 60;  // secondes

@@ -1,3 +1,4 @@
+// Guide de l'architecture et du rôle des fonctions : GUIDE_CODE.md.
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -7,6 +8,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { demarrerQuiz } = require('./minijeux/quiz');
+const { demarrerCulture } = require('./minijeux/culture-g'); // [AJOUT] mini-jeu 2
 
 const app = express();
 const server = http.createServer(app);
@@ -413,34 +415,61 @@ function joueurSuivant(code) {
   }
 }
 
-// Tous les joueurs ont joué : c'est ici qu'on lancera le mini-jeu
+// [AJOUT] Liste des mini-jeux qu'on peut lancer en ce moment.
+// Le quiz du titre drôle n'est possible que s'il y a des images dans le dossier.
+function miniJeuxDisponibles() {
+  const liste = ['culture'];
+  if (IMAGES_QUIZ1.length > 0) liste.push('quiz');
+  return liste;
+}
+
+// [AJOUT] Pioche comme pour les images : chaque mini-jeu passe une fois
+// avant qu'un mini-jeu revienne (pas le même 3 fois de suite par malchance)
+function piocherMiniJeu(partie) {
+  if (!partie.miniJeuxRestants || partie.miniJeuxRestants.length === 0) {
+    partie.miniJeuxRestants = melanger(miniJeuxDisponibles());
+  }
+  return partie.miniJeuxRestants.pop();
+}
+
+// Tous les joueurs ont joué : on lance un mini-jeu
 function finDeTour(code) {
   const partie = parties.get(code);
   if (!partie) return;
 
-  // Aucune image dans le dossier : on saute le mini-jeu plutôt que de bloquer la partie
   if (IMAGES_QUIZ1.length === 0) {
-    console.warn(`Aucune image dans ${DOSSIER_QUIZ1} : mini-jeu ignoré`);
-    tourSuivant(code);
-    return;
+    console.warn(`Aucune image dans ${DOSSIER_QUIZ1} : le quiz du titre drôle ne sera pas proposé`);
   }
 
-  partie.phase = 'minijeu';
-  partie.miniJeu = demarrerQuiz({
+  // [MODIFIÉ] Ces réglages sont communs à tous les mini-jeux
+  const options = {
     io,
     code,
     partie,
-    image: piocherImage(partie),
     envoyerAuJoueur: (pseudo, evenement, donnees) => {
       const socketId = partie.sockets.get(pseudo);
       if (socketId) io.to(socketId).emit(evenement, donnees);
     },
-    // Le quiz est fini : on libère le mini-jeu et on enchaîne sur le tour suivant
+    // Le mini-jeu est fini : on le libère et on enchaîne sur le tour suivant
     onFin: () => {
       partie.miniJeu = null;
+      partie.typeMiniJeu = null;
       tourSuivant(code);
     },
-  });
+  };
+
+  const type = piocherMiniJeu(partie);
+  partie.phase = 'minijeu';
+  partie.typeMiniJeu = type; // [AJOUT] pour savoir à quel mini-jeu transmettre les messages
+
+  // [AJOUT] Prévient les écrans du mini-jeu qui commence (pour afficher la bonne page)
+  io.to(code).emit('minijeu', { type });
+
+  if (type === 'quiz') {
+    partie.miniJeu = demarrerQuiz({ ...options, image: piocherImage(partie) });
+  } else {
+    partie.miniJeu = demarrerCulture(options);
+  }
 }
 
 function tourSuivant(code) {
@@ -532,6 +561,8 @@ io.on('connection', (socket) => {
       routeChoisie: null,
       timer: null,
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
+      typeMiniJeu: null,      // [AJOUT] 'quiz' ou 'culture' : quel mini-jeu est en cours
+      miniJeuxRestants: null, // [AJOUT] le "paquet" de mini-jeux
       imagesRestantes: null,  // le "paquet" d'images du quiz
       sockets: new Map(),     // pseudo → id du socket, pour écrire à un seul joueur
       tokens: new Map(),      // token secret → pseudo (jamais envoyé aux autres écrans)
@@ -641,6 +672,7 @@ io.on('connection', (socket) => {
       if (partie.phase === 'fin') {
         socket.emit('fin-de-partie', { classement: classement(partie) });
       } else if (partie.phase === 'minijeu' && partie.miniJeu) {
+        socket.emit('minijeu', { type: partie.typeMiniJeu }); // [AJOUT] quel mini-jeu afficher
         partie.miniJeu.renvoyerEtat(pseudo);
       } else if (partie.phase === 'choix-etoile' && partie.deplacementSuspendu?.pseudo === pseudo) {
         socket.emit('demande-achat-etoile', {
@@ -672,11 +704,18 @@ io.on('connection', (socket) => {
     const partie = parties.get(code);
     if (!partie || partie.demarree) return;
 
-    // Les joueurs encore déconnectés dans le salon ne participent pas
+    // Les joueurs déconnectés ne participent pas
     for (const joueur of [...partie.joueurs]) {
       if (!joueur.connecte) retirerJoueur(code, joueur.pseudo);
     }
-    if (partie.joueurs.length === 0) return;
+
+    // Minimum de 3 joueurs
+    if (partie.joueurs.length < 3) {
+      socket.emit('erreur-demarrage',
+        'Il faut au moins 3 joueurs connectés pour démarrer la partie !'
+      );
+      return;
+    }
 
     const nbToursChoisi = Number(nbTours);
     partie.nbTours = Number.isInteger(nbToursChoisi) &&
@@ -785,15 +824,24 @@ io.on('connection', (socket) => {
     }, 500);
   });
 
-  // Messages du mini-jeu : server.js ne fait que les transmettre au quiz en cours
-  socket.on('quiz-reponse', (texte) => {
+  // Les messages sont transmis uniquement au mini-jeu du bon type.
+  function miniJeuEnCours(type) {
     const partie = parties.get(socket.data.code);
-    if (partie && partie.miniJeu) partie.miniJeu.repondre(socket.data.pseudo, texte);
+    if (partie && partie.miniJeu && partie.typeMiniJeu === type) return partie.miniJeu;
+    return null;
+  }
+
+  socket.on('quiz-reponse', (texte) => {
+    miniJeuEnCours('quiz')?.repondre(socket.data.pseudo, texte);
   });
 
   socket.on('quiz-vote', (id) => {
-    const partie = parties.get(socket.data.code);
-    if (partie && partie.miniJeu) partie.miniJeu.voter(socket.data.pseudo, Number(id));
+    miniJeuEnCours('quiz')?.voter(socket.data.pseudo, Number(id));
+  });
+
+  // [AJOUT] Le joueur a appuyé sur un des 4 boutons du quiz culture (index 0 à 3)
+  socket.on('culture-reponse', (index) => {
+    miniJeuEnCours('culture')?.repondre(socket.data.pseudo, index);
   });
 
   socket.on('disconnect', () => {
@@ -828,11 +876,6 @@ io.on('connection', (socket) => {
 
     // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
     if (partie.phase !== 'fin') {
-      partie.abandons.set(pseudo, setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION));
-    }
-
-    // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
-    if (partie.phase !== 'fin') {
       partie.abandons.set(
         pseudo,
         setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION)
@@ -851,9 +894,23 @@ io.on('connection', (socket) => {
 });
 
 
-server.listen(PORT, () => {
-  console.log(`Serveur prêt :`);
-  console.log(`- Local : http://localhost:${PORT}`);
-  console.log(`- Réseau Wi-Fi : http://${LOCAL_IP}:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Serveur prêt :`);
+    console.log(`- Local : http://localhost:${PORT}`);
+    console.log(`- Réseau Wi-Fi : http://${LOCAL_IP}:${PORT}`);
+  });
+}
+
+module.exports = {
+  PLATEAU,
+  POSITIONS_ETOILE,
+  choisirPositionEtoile,
+  plateauAvecEtoile,
+  normaliserAvatar,
+  melanger,
+  piocherImage,
+  classement,
+  appliquerEffetCase,
+};
 
