@@ -30,7 +30,7 @@ function getLocalIp() {
 }
 
 const LOCAL_IP = getLocalIp();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 const PLATEAU = [
   'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
@@ -350,7 +350,7 @@ function piocherMiniJeu(partie) {
 }
 
 // Tous les joueurs ont joué : on lance un mini-jeu
-function finDeTour(code) {
+function finDeTour(code, reglages = {}) {
   const partie = parties.get(code);
   if (!partie) return;
 
@@ -373,9 +373,10 @@ function finDeTour(code) {
       partie.typeMiniJeu = null;
       tourSuivant(code);
     },
+    ...reglages,
   };
 
-  const type = piocherMiniJeu(partie);
+  const type = reglages.type || piocherMiniJeu(partie);
   partie.phase = 'minijeu';
   partie.typeMiniJeu = type; // [AJOUT] pour savoir à quel mini-jeu transmettre les messages
 
@@ -383,7 +384,7 @@ function finDeTour(code) {
   io.to(code).emit('minijeu', { type });
 
   if (type === 'quiz') {
-    partie.miniJeu = demarrerQuiz({ ...options, image: piocherImage(partie) });
+    partie.miniJeu = demarrerQuiz({ ...options, image: reglages.image || piocherImage(partie) });
   } else {
     partie.miniJeu = demarrerCulture(options);
   }
@@ -477,7 +478,7 @@ io.on('connection', (socket) => {
       deplacementSuspendu: null,
       timer: null,
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
-      typeMiniJeu: null,      // [AJOUT] 'quiz' ou 'culture' : quel mini-jeu est en cours
+      typeMiniJeu: null,      // 'quiz' ou 'culture'
       miniJeuxRestants: null, // [AJOUT] le "paquet" de mini-jeux
       imagesRestantes: null,  // le "paquet" d'images du quiz
       sockets: new Map(),     // pseudo → id du socket, pour écrire à un seul joueur
@@ -763,14 +764,6 @@ io.on('connection', (socket) => {
       partie.abandons.set(pseudo, setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION));
     }
 
-    // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
-    if (partie.phase !== 'fin') {
-      partie.abandons.set(
-        pseudo,
-        setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION)
-      );
-    }
-
     // Si c'était son tour, on ne bloque pas la partie trop longtemps
     if (
       partie.demarree &&
@@ -792,6 +785,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  app, server, io, parties, finDeTour, finDePartie,
   PLATEAU,
   POSITIONS_ETOILE,
   choisirPositionEtoile,

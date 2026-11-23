@@ -124,6 +124,7 @@
       });
 
       socket.on('partie-demarree', (donnees) => {
+        document.getElementById('fin').hidden = true;
         plateau = donnees.plateau;
         joueurs = donnees.joueurs;
         document.getElementById('salon').hidden = true;

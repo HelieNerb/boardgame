@@ -9,37 +9,21 @@
   <script type="module" src="./app.js"></script>
 </head>
 <body>
-  <h1>Mayo Party 🌭 !</h1>
-  <div id="menu">
-    <a href="http://localhost:3000/host/"><button>Hôte</button></a><br>
-    <a href="http://localhost:3000/play/"><button>Joueur</button></a><br>
-    <p class="message">Debug — mini-jeux</p>
-    <button data-game="quiz" disabled>Tester le titre drôle</button><br>
-    <button data-game="culture" disabled>Tester la culture générale</button>
+  <div id="controls">
+    <select id="type" aria-label="Mini-jeu"><option value="quiz">Titre drôle</option><option value="culture">Culture générale</option></select>
+    <button id="open-phones" disabled>Ouvrir 3 téléphones</button>
+    <button id="start" disabled>Tester</button>
+    <button id="stop" disabled>Arrêter</button>
+    <span id="phone-links" hidden><button data-player="1">Joueur 1</button><button data-player="2">Joueur 2</button><button data-player="3">Joueur 3</button></span>
     <details>
-      <summary>Réglages du test</summary>
-      <form id="settings">
-        <p><label for="players">Joueurs</label><br>
-          <select id="players" name="players"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select></p>
-        <p><label for="image">Image</label><br>
-          <select id="image" name="image"><option>cheval.jpg</option><option>cheval2.jpg</option><option>fishler.jpg</option><option>fusee.jpg</option><option>singe.jpg</option><option>sushorse.jpg</option><option>tung.jpg</option></select></p>
-        <p><label for="questions">Questions de culture générale</label><br>
-          <select id="questions" name="questions"><option>1</option><option selected>3</option><option>5</option></select></p>
-        <p><label><input id="bots" type="checkbox" checked> Autres joueurs automatiques</label></p>
-        <p><label><input id="fast" type="checkbox" checked> Durées courtes</label></p>
-      </form>
+      <summary>Réglages du debug</summary>
+      <label>Questions <select id="questions"><option>1</option><option>3</option><option selected>5</option></select></label>
+      <label>Image <select id="image"></select></label>
+      <label><input id="fast" type="checkbox"> Durées courtes</label>
     </details>
+    <p id="status" class="message" role="status">Démarrez node debug/server.js</p>
+    <p id="error" class="message" role="alert" hidden></p>
   </div>
-  <div id="game" hidden>
-    <button id="stop" disabled>Retour au menu</button>
-    <p id="status" role="status"></p>
-    <p class="info-tour"><span id="phase"></span> <span id="countdown"></span></p>
-    <h2 id="host-title"></h2>
-    <p id="host-message"></p>
-    <div id="host-content"></div>
-    <p id="progress" class="message" role="status"></p>
-    <div id="player-cards" class="debug-players"></div>
-  </div>
-  <p id="error" class="message" role="alert" hidden></p>
+  <iframe id="host" title="Écran principal officiel"></iframe>
 </body>
 </html>

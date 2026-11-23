@@ -1,30 +1,38 @@
-# Debug des mini-jeux
+# Debug local
 
-Ouvrir la racine du projet dans VS Code, puis **Open with Live Server** sur
-`debug/index.html` : `http://127.0.0.1:5500/debug/` (selon le port utilisé).
-
-La page reprend l'accueil et le CSS du jeu. Deux boutons permettent de lancer
-directement le titre drôle ou la culture générale. Les liens Hôte et Joueur
-ouvrent le jeu normal sur le serveur Node `localhost:3000`.
-
-- Par défaut : 3 joueurs, Joueur 1 manuel et les autres automatiques.
-- **Réglages du test** : nombre de joueurs, image, questions, bots et durées courtes.
-- Décocher les bots pour contrôler toutes les manettes sur la même page.
-- **Retour au menu** arrête le jeu et ses minuteurs. Un nouveau test remet les pièces à 5.
-
-Le debug fonctionne avec un serveur statique, sans serveur Node. `app.js` gère
-les interactions et un Worker charge les modules originaux dans `minijeux/`.
-`engine.worker.js` adapte `module.exports`, le chargement JSON et les événements
-du jeu aux messages du navigateur. Les règles, les scores et les récompenses
-restent dans les modules existants. Le debug ne teste pas la connexion réseau,
-la reconnexion ou le plateau ; ceux-ci se vérifient dans une partie normale.
-
-Vérifications :
+Depuis la racine du projet :
 
 ```sh
-node --test debug/engine.test.js
-npm test
+node debug/server.js
 ```
 
-Manuellement : jouer aux deux mini-jeux, essayer sans bots, laisser expirer
-un délai et revenir au menu pendant une partie avant de relancer un autre jeu.
+Ouvrir **http://127.0.0.1:3001/debug/**. L'entrée `debug/index.html` fonctionne
+également avec Live Server, à condition que ce serveur Node soit lancé.
+
+1. Attendre le code du salon sur l'écran principal.
+2. Cliquer **Ouvrir 3 téléphones**. Si le navigateur bloque des fenêtres,
+   ouvrir les boutons **Joueur 1**, **Joueur 2**, **Joueur 3** séparément.
+3. Attendre **3/3 téléphones connectés**.
+4. Choisir le mini-jeu, puis **Tester**. Jouer uniquement depuis les téléphones.
+
+L'écran principal charge `public/host/index.html` et les téléphones chargent
+`public/play/index.html`. Les images, CSS, gestionnaires d'événements et
+connexions Socket.IO sont ceux du jeu normal. Le debug réutilise le véritable
+`server.js` et ne dessine aucun écran de jeu. Il prépare seulement le salon,
+les trois identités et le lancement direct du mini-jeu, sans passage sur le plateau.
+
+Les fenêtres ont des clés de session distinctes. Les rouvrir ne redémarre pas
+la partie et ne recharge pas les fenêtres déjà ouvertes. Une fenêtre rafraîchie
+utilise la reconnexion normale du jeu. Aucun bot ni bouton de joueur n'est
+présent sur l'écran principal. Le serveur refuse de démarrer sans les trois joueurs.
+
+**Arrêter** termine le test. Chaque nouveau test remet les pièces à 5 et les
+étoiles à 0. Par défaut les durées sont celles du jeu ; **Durées courtes** est
+une option. En fin de mini-jeu, les résultats puis la fin de partie sont affichés
+comme dans le jeu normal.
+
+Le sélecteur d'images utilise les fichiers présents dans `public/images/quiz1/`,
+lus au démarrage du serveur : il suit la banque d'images du jeu sans liste copiée.
+
+`DEBUG_PORT` permet de changer le port 3001. Dans ce cas, ouvrir l'entrée avec
+`?server=http://127.0.0.1:PORT`. Aucune dépendance supplémentaire n'est ajoutée.

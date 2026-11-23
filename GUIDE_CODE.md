@@ -48,7 +48,7 @@ Les événements `socket.emit(...)` envoient une action au serveur ou une répon
 | `joueurSuivant(code)` | Avance l’index actif; quand tous les joueurs ont joué, appelle `finDeTour`, sinon démarre le tour du prochain joueur. |
 | `miniJeuxDisponibles()` | Retourne les mini-jeux jouables. Le quiz titre n’est ajouté que si des images sont disponibles. |
 | `piocherMiniJeu(partie)` | Tire un mini-jeu d’un paquet mélangé; recharge le paquet vide avant un nouveau tirage. |
-| `finDeTour(code)` | Prépare les fonctions communes aux mini-jeux, en tire un, avertit les clients et démarre `demarrerQuiz` ou `demarrerCulture`. Le rappel `onFin` nettoie l’état du mini-jeu puis passe au prochain tour. |
+| `finDeTour(code, reglages = {})` | Prépare les fonctions communes aux mini-jeux, en tire un, avertit les clients et démarre `demarrerQuiz` ou `demarrerCulture`. Le rappel `onFin` nettoie l’état du mini-jeu puis passe au prochain tour. Le debug peut imposer le mini-jeu, ses durées et son rappel de fin. |
 | `tourSuivant(code)` | Incrémente le tour, remet l’index au premier joueur, puis démarre le tour ou termine la partie si la limite est dépassée. |
 | `finDePartie(code)` | Place la partie en phase `fin` et diffuse le classement final. |
 | `retirerJoueur(code, pseudo)` | Enlève un joueur absent depuis trop longtemps, nettoie son socket, ses jetons et minuteurs, corrige l’index actif et prévient le mini-jeu qu’il ne faut plus attendre ce joueur. |
