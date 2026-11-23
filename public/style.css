@@ -1,3 +1,9 @@
+.course-ligne { max-width: 700px; margin: 1rem auto; text-align: left; }
+.course-piste { position: relative; height: 45px; margin: 0 25px; border-bottom: 2px dashed #9aa6c7; }
+.course-cheval { position: absolute; left: 0; font-size: 2rem; transform: translateX(-50%) scaleX(-1); }
+.course-arrivee { position: absolute; right: -25px; font-size: 2rem; }
+.course-bouton { min-height: 100px; touch-action: manipulation; user-select: none; }
+
 body {
   font-family: system-ui, sans-serif;
   background: #1d2b4f;

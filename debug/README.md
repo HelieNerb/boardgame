@@ -34,5 +34,10 @@ comme dans le jeu normal.
 Le sélecteur d'images utilise les fichiers présents dans `public/images/quiz1/`,
 lus au démarrage du serveur : il suit la banque d'images du jeu sans liste copiée.
 
+Pour **Course de chevaux**, choisir ce mini-jeu puis **Tester** et cliquer sur
+**Clique !** dans les trois téléphones. Par défaut : préparation 3 s, course
+20 s, arrivée à 60 clics ; en durées courtes : 2 s, 10 s, 30 clics. Les pistes
+et les scores en direct sont ceux de l'écran Hôte officiel.
+
 `DEBUG_PORT` permet de changer le port 3001. Dans ce cas, ouvrir l'entrée avec
 `?server=http://127.0.0.1:PORT`. Aucune dépendance supplémentaire n'est ajoutée.

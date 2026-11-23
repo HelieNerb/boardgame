@@ -48,7 +48,7 @@ Les événements `socket.emit(...)` envoient une action au serveur ou une répon
 | `joueurSuivant(code)` | Avance l’index actif; quand tous les joueurs ont joué, appelle `finDeTour`, sinon démarre le tour du prochain joueur. |
 | `miniJeuxDisponibles()` | Retourne les mini-jeux jouables. Le quiz titre n’est ajouté que si des images sont disponibles. |
 | `piocherMiniJeu(partie)` | Tire un mini-jeu d’un paquet mélangé; recharge le paquet vide avant un nouveau tirage. |
-| `finDeTour(code, reglages = {})` | Prépare les fonctions communes aux mini-jeux, en tire un, avertit les clients et démarre `demarrerQuiz` ou `demarrerCulture`. Le rappel `onFin` nettoie l’état du mini-jeu puis passe au prochain tour. Le debug peut imposer le mini-jeu, ses durées et son rappel de fin. |
+| `finDeTour(code, reglages = {})` | Prépare les fonctions communes aux mini-jeux, en tire un, avertit les clients et démarre `demarrerQuiz`, `demarrerCulture` ou `demarrerCourse`. Le rappel `onFin` nettoie l’état du mini-jeu puis passe au prochain tour. Le debug peut imposer le mini-jeu, ses durées et son rappel de fin. |
 | `tourSuivant(code)` | Incrémente le tour, remet l’index au premier joueur, puis démarre le tour ou termine la partie si la limite est dépassée. |
 | `finDePartie(code)` | Place la partie en phase `fin` et diffuse le classement final. |
 | `retirerJoueur(code, pseudo)` | Enlève un joueur absent depuis trop longtemps, nettoie son socket, ses jetons et minuteurs, corrige l’index actif et prévient le mini-jeu qu’il ne faut plus attendre ce joueur. |
@@ -65,7 +65,7 @@ Le bloc `io.on('connection', ...)` enregistre les actions disponibles pour chaqu
 | `demarrer` | Retire les joueurs déjà déconnectés, exige au moins trois joueurs connectés, valide le nombre de tours et lance le premier tour. |
 | `lancer-de` | Vérifie que l’émetteur est le joueur actif en attente, tire un résultat de 1 à 6 et commence son déplacement. |
 | `choix-etoile` | Vérifie que le joueur actif répond à la demande en cours; achète ou refuse l’étoile puis reprend le déplacement suspendu. |
-| `quiz-reponse`, `quiz-vote`, `culture-reponse` | Transmettent les actions au mini-jeu du bon type. La fonction imbriquée `miniJeuEnCours(type)` évite d’appeler une méthode qui n’existe pas sur l’autre mini-jeu. |
+| `quiz-reponse`, `quiz-vote`, `culture-reponse`, `course-clic` | Transmettent les actions au mini-jeu du bon type. La fonction imbriquée `miniJeuEnCours(type)` évite d’appeler une méthode qui n’existe pas sur l’autre mini-jeu. |
 | `disconnect` | Supprime une partie si son hôte part; pour un joueur, le marque temporairement absent et programme son retrait définitif. Ignore la déconnexion d’un ancien socket remplacé lors d’une reconnexion. |
 
 ## `minijeux/quiz.js` — écrire puis voter pour un titre
@@ -119,6 +119,19 @@ Le bloc `io.on('connection', ...)` enregistre les actions disponibles pour chaqu
 | `retirerJoueur(pseudo)` | Retire sa réponse en cours et peut lancer la correction si les joueurs restants ont répondu. |
 | `renvoyerEtat(pseudo)` | Renvoie l’écran correspondant à la phase en cours, en préservant le choix déjà donné et le temps restant. |
 | `arreter()` | Arrête le mini-jeu et son minuteur sans enchaîner un nouveau tour. |
+
+## `minijeux/course.js` — course de chevaux au clic
+
+`demarrerCourse(options)` ouvre une préparation de 3 secondes, puis une course
+de 20 secondes. Chaque `course-clic` valide ajoute un pas. Le premier à 60 pas
+gagne ; à la limite du temps, le meilleur score positif gagne, ex æquo compris.
+Chaque gagnant reçoit cinq pièces, puis les résultats restent affichés 5 secondes.
+
+Le serveur diffuse `course-preparation`, `course-depart`, `course-positions`
+et `course-resultats`. Les téléphones envoient seulement les clics : le serveur
+calcule les scores et vérifie la phase et l'identité. `renvoyerEtat` restaure
+le score et la phase lors d'une reconnexion ; `arreter` annule le minuteur.
+`public/course.js` affiche les pistes et les scores dans la page Hôte.
 
 ## Côté navigateur
 

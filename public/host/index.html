@@ -52,6 +52,13 @@
       <div id="culture-classement" class="propositions"></div>
     </div>
 
+    <div id="course" hidden>
+      <h1>Course de chevaux</h1>
+      <h2 id="course-chrono" class="info-tour"></h2>
+      <p id="course-message" class="message"></p>
+      <div id="course-pistes"></div>
+    </div>
+
     <div id="fin" hidden>
       <h1>Fin de la partie 🎉</h1>
       <div id="resultats"></div>
@@ -59,6 +66,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/avatar.js"></script>
+    <script src="/course.js"></script>
     <!-- Les fonctions d'affichage et les événements Socket.IO sont expliqués dans GUIDE_CODE.md. -->
     <script>
       const socket = io();
@@ -341,6 +349,7 @@
       });
 
       socket.on('fin-de-partie', ({ classement }) => {
+        document.getElementById('course').hidden = true;
         document.getElementById('jeu').hidden = true;
         document.getElementById('quiz').hidden = true;
         document.getElementById('culture').hidden = true; // [AJOUT]
@@ -357,6 +366,39 @@
           resultats.appendChild(p);
         });
       });
+
+      // Mini-jeu : course de chevaux.
+      function afficherCourse(donnees) {
+        for (const id of ['jeu', 'quiz', 'culture']) document.getElementById(id).hidden = true;
+        document.getElementById('course').hidden = false;
+        MayoCourse.afficher(document.getElementById('course-pistes'), donnees);
+      }
+
+      socket.on('course-preparation', (donnees) => {
+        afficherCourse(donnees);
+        document.getElementById('course-message').textContent = 'Préparez-vous !';
+        lancerChrono(donnees.duree, 'course-chrono');
+      });
+
+      socket.on('course-depart', (donnees) => {
+        afficherCourse(donnees);
+        document.getElementById('course-message').textContent = 'Cliquez sur votre téléphone ! Premier à ' + donnees.objectif + ' clics.';
+        lancerChrono(donnees.duree, 'course-chrono');
+      });
+
+      socket.on('course-positions', (donnees) => {
+        MayoCourse.afficher(document.getElementById('course-pistes'), donnees);
+      });
+
+      socket.on('course-resultats', (donnees) => {
+        clearInterval(chrono);
+        afficherCourse({ joueurs: donnees.classement, objectif: donnees.objectif });
+        document.getElementById('course-chrono').textContent = donnees.raison === 'arrivee' ? 'Arrivée !' : 'Temps écoulé !';
+        document.getElementById('course-message').textContent = donnees.gagnants.length
+          ? donnees.gagnants.join(', ') + ' gagne : +5 pièces !' : 'Aucun gagnant.';
+      });
+
+      socket.on('tour', () => { document.getElementById('course').hidden = true; });
 
       function afficherScores() {
         const div = document.getElementById('scores');

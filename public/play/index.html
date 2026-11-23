@@ -73,6 +73,13 @@
     <button onclick="choisirEtoile(false)">Renoncer</button>
   </div>
 
+  <div id="course" hidden>
+    <h2>Course de chevaux</h2>
+    <p id="course-message" class="message"></p>
+    <p id="course-score" class="stats"></p>
+    <button id="course-clic" class="course-bouton" onclick="cliquerCourse()" disabled>Clique !</button>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/avatar.js"></script>
   <!-- Les fonctions d'interface, de session et de mini-jeu sont expliquées dans GUIDE_CODE.md. -->
@@ -163,6 +170,7 @@
     });
 
     socket.on('disconnect', () => {
+      document.getElementById('course-clic').disabled = true;
       document.getElementById('message').textContent = 'Connexion perdue... reconnexion en cours';
     });
 
@@ -364,6 +372,8 @@
     socket.on('tour', () => afficherQuiz(null));
 
     socket.on('fin-de-partie', () => {
+      document.getElementById('course').hidden = true;
+      document.getElementById('course-clic').disabled = true;
       afficherQuiz(null);
       afficherCulture(false); // [AJOUT]
       document.getElementById('bouton-de').disabled = true;
@@ -491,6 +501,38 @@
 
     // Le tour suivant démarre : on quitte le quiz culture (le dé est réaffiché par afficherQuiz)
     socket.on('tour', () => afficherCulture(false));
+
+    // Mini-jeu : course de chevaux.
+    function afficherCourse(donnees, depart) {
+      for (const id of ['jeu', 'quiz', 'culture', 'choix-etoile']) document.getElementById(id).hidden = true;
+      document.getElementById('course').hidden = false;
+      document.getElementById('course-clic').disabled = !depart;
+      document.getElementById('course-message').textContent = depart ? 'Clique le plus vite possible !' : 'Prépare-toi !';
+      afficherScoreCourse(donnees);
+    }
+
+    function afficherScoreCourse(donnees) {
+      const moi = donnees.joueurs.find((j) => j.pseudo === monPseudo);
+      if (moi) document.getElementById('course-score').textContent = moi.score + ' / ' + donnees.objectif + ' clics';
+    }
+
+    function cliquerCourse() {
+      if (!document.getElementById('course-clic').disabled) socket.emit('course-clic');
+    }
+
+    socket.on('course-preparation', (donnees) => afficherCourse(donnees, false));
+    socket.on('course-depart', (donnees) => afficherCourse(donnees, true));
+    socket.on('course-positions', afficherScoreCourse);
+    socket.on('course-resultats', (donnees) => {
+      afficherCourse({ joueurs: donnees.classement, objectif: donnees.objectif }, false);
+      const moi = donnees.classement.find((j) => j.pseudo === monPseudo);
+      document.getElementById('course-message').textContent = moi?.pieces
+        ? 'Gagné ! +' + moi.pieces + ' pièces !' : 'Course terminée !';
+    });
+    socket.on('tour', () => {
+      document.getElementById('course').hidden = true;
+      document.getElementById('course-clic').disabled = true;
+    });
   </script>
 </body>
 

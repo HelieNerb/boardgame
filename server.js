@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { demarrerQuiz } = require('./minijeux/quiz');
 const { demarrerCulture } = require('./minijeux/culture-g'); // [AJOUT] mini-jeu 2
+const { demarrerCourse } = require('./minijeux/course');
 
 const app = express();
 const server = http.createServer(app);
@@ -335,7 +336,7 @@ function joueurSuivant(code) {
 // [AJOUT] Liste des mini-jeux qu'on peut lancer en ce moment.
 // Le quiz du titre drôle n'est possible que s'il y a des images dans le dossier.
 function miniJeuxDisponibles() {
-  const liste = ['culture'];
+  const liste = ['culture', 'course'];
   if (IMAGES_QUIZ1.length > 0) liste.push('quiz');
   return liste;
 }
@@ -385,8 +386,10 @@ function finDeTour(code, reglages = {}) {
 
   if (type === 'quiz') {
     partie.miniJeu = demarrerQuiz({ ...options, image: reglages.image || piocherImage(partie) });
-  } else {
+  } else if (type === 'culture') {
     partie.miniJeu = demarrerCulture(options);
+  } else {
+    partie.miniJeu = demarrerCourse(options);
   }
 }
 
@@ -478,7 +481,7 @@ io.on('connection', (socket) => {
       deplacementSuspendu: null,
       timer: null,
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
-      typeMiniJeu: null,      // 'quiz' ou 'culture'
+      typeMiniJeu: null,      // 'quiz', 'culture' ou 'course'
       miniJeuxRestants: null, // [AJOUT] le "paquet" de mini-jeux
       imagesRestantes: null,  // le "paquet" d'images du quiz
       sockets: new Map(),     // pseudo → id du socket, pour écrire à un seul joueur
@@ -727,6 +730,10 @@ io.on('connection', (socket) => {
   // [AJOUT] Le joueur a appuyé sur un des 4 boutons du quiz culture (index 0 à 3)
   socket.on('culture-reponse', (index) => {
     miniJeuEnCours('culture')?.repondre(socket.data.pseudo, index);
+  });
+
+  socket.on('course-clic', () => {
+    miniJeuEnCours('course')?.cliquer(socket.data.pseudo);
   });
 
   socket.on('disconnect', () => {

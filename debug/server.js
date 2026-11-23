@@ -27,8 +27,8 @@ router.use((req, res, next) => {
 router.use(express.json({ limit: '4kb' }));
 
 function settings(body = {}) {
-  const config = { type: body.type || 'quiz', fast: body.fast === true, questions: Number(body.questions ?? 5), image: body.image || images[0] };
-  if (!['quiz', 'culture'].includes(config.type) || !Number.isInteger(config.questions) || config.questions < 1 || config.questions > 5) throw new Error('Réglages invalides.');
+  const config = { type: body.type || 'course', fast: body.fast === true, questions: Number(body.questions ?? 5), image: body.image || images[0] };
+  if (!['quiz', 'culture', 'course'].includes(config.type) || !Number.isInteger(config.questions) || config.questions < 1 || config.questions > 5) throw new Error('Réglages invalides.');
   if (!images.includes(config.image)) throw new Error('Image introuvable.');
   return config;
 }
@@ -49,9 +49,11 @@ function start(session, config) {
   const durees = config.fast ? {
     quiz: { ecriture: 20, vote: 15, resultats: 3 },
     culture: { lecture: 1, question: 12, correction: 2, classement: 3 },
+    course: { preparation: 2, course: 10, resultats: 3 },
   }[config.type] : undefined;
   try { finDeTour(code, {
     type: config.type, image: config.image, nbQuestions: config.questions, durees,
+    objectif: config.fast ? 30 : 60,
     onFin: () => {
       if (parties.get(code) !== partie) return;
       partie.miniJeu = null; partie.typeMiniJeu = null; partie.demarree = false; finDePartie(code);
