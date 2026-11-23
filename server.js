@@ -33,15 +33,78 @@ function getLocalIp() {
 const LOCAL_IP = getLocalIp();
 const PORT = 3000;
 
-const PLATEAU = [
-  'depart', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
-  'bleue', 'bleue', 'rouge', 'shop', 'bleue', 'rouge',
-  'bleue', 'bleue', 'bleue', 'rouge', 'bleue', 'bleue',
-  'bleue', 'bleue', 'rouge', 'bleue', 'rouge', 'bleue',
+function coordonneesCircuit() {
+  const cases = [];
+  for (let colonne = 1; colonne <= 9; colonne++) cases.push({ ligne: 1, colonne });
+  for (let ligne = 2; ligne <= 9; ligne++) cases.push({ ligne, colonne: 9 });
+  for (let colonne = 8; colonne >= 1; colonne--) cases.push({ ligne: 9, colonne });
+  for (let ligne = 8; ligne >= 2; ligne--) cases.push({ ligne, colonne: 1 });
+  return cases;
+}
+
+const TYPES_CIRCUIT = Array.from({ length: 32 }, (_, index) => {
+  if (index === 0) return 'depart';
+  if (index === 4 || index === 20) return 'choix';
+  if (index === 10) return 'shop';
+  return index % 4 === 3 ? 'rouge' : 'bleue';
+});
+
+const CASES_RACCOURCI = [
+  { type: 'bleue', ligne: 2, colonne: 5 },
+  { type: 'rouge', ligne: 3, colonne: 6 },
+  { type: 'bleue', ligne: 4, colonne: 7 },
+  { type: 'bleue', ligne: 5, colonne: 8 },
+  { type: 'bleue', ligne: 8, colonne: 5 },
+  { type: 'rouge', ligne: 7, colonne: 4 },
+  { type: 'bleue', ligne: 6, colonne: 3 },
+  { type: 'bleue', ligne: 5, colonne: 2 },
 ];
 
-// Emplacements possibles pour l'étoile
-const POSITIONS_ETOILE = [6, 12, 18];
+const PLATEAU = [
+  ...coordonneesCircuit().map((coordonnees, index) => ({
+    ...coordonnees,
+    type: TYPES_CIRCUIT[index],
+  })),
+  ...CASES_RACCOURCI,
+];
+
+// Les étoiles apparaissent sur le circuit ou sur l'un des deux raccourcis.
+const POSITIONS_ETOILE = [8, 16, 22, 29, 32, 38];
+
+const CHOIX_CHEMINS = {
+  4: [
+    { id: 'circuit', label: 'Continuer sur le circuit', destination: 5 },
+    { id: 'raccourci', label: 'Prendre le raccourci du haut', destination: 32 },
+  ],
+  20: [
+    { id: 'circuit', label: 'Continuer sur le circuit', destination: 21 },
+    { id: 'raccourci', label: 'Prendre le raccourci du bas', destination: 36 },
+  ],
+};
+
+const PROCHAINE_CASE = [
+  ...Array.from({ length: 32 }, (_, index) => (index + 1) % 32),
+  33, 34, 35, 12,
+  37, 38, 39, 28,
+];
+
+const LIENS_PLATEAU = [
+  ...Array.from({ length: 32 }, (_, from) => ({
+    from,
+    to: (from + 1) % 32,
+    type: 'circuit',
+  })),
+  { from: 4, to: 32, type: 'raccourci' },
+  { from: 32, to: 33, type: 'raccourci' },
+  { from: 33, to: 34, type: 'raccourci' },
+  { from: 34, to: 35, type: 'raccourci' },
+  { from: 35, to: 12, type: 'raccourci' },
+  { from: 20, to: 36, type: 'raccourci' },
+  { from: 36, to: 37, type: 'raccourci' },
+  { from: 37, to: 38, type: 'raccourci' },
+  { from: 38, to: 39, type: 'raccourci' },
+  { from: 39, to: 28, type: 'raccourci' },
+];
 
 function choisirPositionEtoile(partie) {
   const positionsDisponibles = POSITIONS_ETOILE.filter(position =>
@@ -64,9 +127,10 @@ function choisirPositionEtoile(partie) {
   ];
 }
 function plateauAvecEtoile(partie) {
-  return PLATEAU.map((type, index) =>
-    index === partie.etoilePosition ? 'etoile' : type
-  );
+  return PLATEAU.map((casePlateau, index) => ({
+    ...casePlateau,
+    type: index === partie.etoilePosition ? 'etoile' : casePlateau.type,
+  }));
 }
 // Paramètres de partie
 const NB_TOURS_DEFAUT = 15;
@@ -175,7 +239,7 @@ function joueurActif(partie) {
 function appliquerEffetCase(partie, joueur) {
   const type = joueur.position === partie.etoilePosition
     ? 'etoile'
-    : PLATEAU[joueur.position];
+    : PLATEAU[joueur.position].type;
 
   switch (type) {
     case 'bleue':
@@ -229,24 +293,44 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
 
   if (!joueur || joueur.pseudo !== pseudo) return;
 
-  // Avancer d'une seule case
-  joueur.position = (joueur.position + 1) % PLATEAU.length;
+  // Une case choix ne consomme aucun point du dé : le joueur décide de la sortie.
+  const route = partie.routeChoisie && partie.routeChoisie.pseudo === pseudo
+    ? partie.routeChoisie.destination
+    : null;
+  const prochainePosition = route ?? PROCHAINE_CASE[joueur.position];
+  partie.routeChoisie = null;
+  joueur.position = prochainePosition;
+  const pipsRestants = PLATEAU[joueur.position].type === 'choix'
+    ? pasRestants
+    : pasRestants - 1;
+
+  if (CHOIX_CHEMINS[joueur.position]) {
+    partie.phase = 'choix-chemin';
+    partie.deplacementSuspendu = { type: 'chemin', pseudo, pasRestants: pipsRestants };
+    io.to(code).emit('positions', partie.joueurs);
+    io.to(code).emit('demande-choix-chemin', {
+      pseudo,
+      options: CHOIX_CHEMINS[joueur.position].map(({ id, label }) => ({ id, label })),
+      pasRestants: pipsRestants,
+    });
+    return;
+  }
 
   // L'étoile interrompt le déplacement jusqu'au choix du joueur.
   if (joueur.position === partie.etoilePosition) {
     partie.phase = 'choix-etoile';
-    partie.deplacementSuspendu = { pseudo, pasRestants };
+    partie.deplacementSuspendu = { type: 'etoile', pseudo, pasRestants: pipsRestants };
     io.to(code).emit('positions', partie.joueurs);
     io.to(code).emit('demande-achat-etoile', {
       pseudo,
       pieces: joueur.pieces,
       prix: PRIX_ETOILE,
-      pasRestants
+      pasRestants: pipsRestants
     });
     return;
   }
   // Case shop : on ouvre la boutique et on attend le choix du joueur.
-  if (pasRestants === 1 && PLATEAU[joueur.position] === 'shop') {
+  if (pipsRestants === 0 && PLATEAU[joueur.position].type === 'shop') {
     partie.phase = 'choix-shop';
     partie.offreShop = genererOffre();
     io.to(code).emit('positions', partie.joueurs);
@@ -266,7 +350,7 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
     return;
   }
   // L'effet s'applique uniquement sur la case d'arrivée, au dernier pas.
-  if (pasRestants === 1) {
+  if (pipsRestants === 0) {
     const effet = appliquerEffetCase(partie, joueur);
 
     io.to(code).emit('effet-case', {
@@ -288,9 +372,9 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
   io.to(code).emit('positions', partie.joueurs);
 
   // Continuer tant qu'il reste des déplacements
-  if (pasRestants > 1) {
+  if (pipsRestants > 0) {
     partie.timer = setTimeout(() => {
-      deplacerPasAPas(code, pseudo, pasRestants - 1);
+      deplacerPasAPas(code, pseudo, pipsRestants);
     }, 500);
   } else {
     // Fin du déplacement
@@ -495,6 +579,7 @@ io.on('connection', (socket) => {
       indexActif: 0,
       etoilePosition: null,
       deplacementSuspendu: null,
+      routeChoisie: null,
       timer: null,
       miniJeu: null,          // le mini-jeu en cours (null s'il n'y en a pas)
       typeMiniJeu: null,      // [AJOUT] 'quiz' ou 'culture' : quel mini-jeu est en cours
@@ -613,6 +698,19 @@ io.on('connection', (socket) => {
       } else if (partie.phase === 'minijeu' && partie.miniJeu) {
         socket.emit('minijeu', { type: partie.typeMiniJeu }); // [AJOUT] quel mini-jeu afficher
         partie.miniJeu.renvoyerEtat(pseudo);
+      } else if (partie.phase === 'choix-etoile' && partie.deplacementSuspendu?.pseudo === pseudo) {
+        socket.emit('demande-achat-etoile', {
+          pseudo,
+          pieces: joueur.pieces,
+          prix: PRIX_ETOILE,
+          pasRestants: partie.deplacementSuspendu.pasRestants,
+        });
+      } else if (partie.phase === 'choix-chemin' && partie.deplacementSuspendu?.pseudo === pseudo) {
+        socket.emit('demande-choix-chemin', {
+          pseudo,
+          options: (CHOIX_CHEMINS[joueur.position] || []).map(({ id, label }) => ({ id, label })),
+          pasRestants: partie.deplacementSuspendu.pasRestants,
+        });
       } else {
         socket.emit('tour', infosTour(partie));
       }
@@ -655,6 +753,7 @@ io.on('connection', (socket) => {
 
     io.to(code).emit('partie-demarree', {
       plateau: plateauAvecEtoile(partie),
+      liens: LIENS_PLATEAU,
       joueurs: partie.joueurs
     });
 
@@ -757,8 +856,8 @@ io.on('connection', (socket) => {
     const suspendu = partie && partie.deplacementSuspendu;
     const joueur = partie && joueurActif(partie);
 
-    if (!partie || partie.phase !== 'choix-etoile' || !suspendu ||
-      !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
+    if (!partie || partie.phase !== 'choix-etoile' || !suspendu || suspendu.type !== 'etoile' ||
+        !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
 
     const achatAccepte = acheter === true && joueur.pieces >= PRIX_ETOILE;
     if (achatAccepte) {
@@ -788,9 +887,9 @@ io.on('connection', (socket) => {
     partie.phase = 'deplacement';
     io.to(code).emit('positions', partie.joueurs);
 
-    if (suspendu.pasRestants > 1) {
+    if (suspendu.pasRestants > 0) {
       partie.timer = setTimeout(() => {
-        deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants - 1);
+        deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants);
       }, 500);
     } else {
       partie.timer = setTimeout(() => {
@@ -799,9 +898,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Messages des mini-jeux : server.js ne fait que les transmettre au mini-jeu en cours.
-  // [MODIFIÉ] On vérifie le TYPE du mini-jeu : sinon un message 'quiz-vote' reçu pendant
-  // le quiz culture appellerait miniJeu.voter, qui n'existe pas → le serveur planterait.
+  socket.on('choisir-chemin', ({ choix } = {}) => {
+    const code = socket.data.code;
+    const partie = parties.get(code);
+    const suspendu = partie && partie.deplacementSuspendu;
+    const joueur = partie && joueurActif(partie);
+    if (!partie || partie.phase !== 'choix-chemin' || !suspendu || suspendu.type !== 'chemin' ||
+        !joueur || joueur.pseudo !== socket.data.pseudo || suspendu.pseudo !== socket.data.pseudo) return;
+
+    const option = (CHOIX_CHEMINS[joueur.position] || []).find(({ id }) => id === choix);
+    if (!option) return;
+
+    partie.deplacementSuspendu = null;
+    partie.routeChoisie = { pseudo: joueur.pseudo, destination: option.destination };
+    partie.phase = 'deplacement';
+    socket.emit('route-choisie', { label: option.label });
+    partie.timer = setTimeout(() => {
+      deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants);
+    }, 500);
+  });
+
+  // Les messages sont transmis uniquement au mini-jeu du bon type.
   function miniJeuEnCours(type) {
     const partie = parties.get(socket.data.code);
     if (partie && partie.miniJeu && partie.typeMiniJeu === type) return partie.miniJeu;
@@ -850,11 +967,6 @@ io.on('connection', (socket) => {
     partie.sockets.delete(pseudo);
     io.to(code).emit('liste-joueurs', partie.joueurs);
     io.to(code).emit('positions', partie.joueurs);
-
-    // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
-    if (partie.phase !== 'fin') {
-      partie.abandons.set(pseudo, setTimeout(() => retirerJoueur(code, pseudo), DELAI_RECONNEXION));
-    }
 
     // Une fois la partie terminée, on garde les joueurs pour qu'ils revoient le classement
     if (partie.phase !== 'fin') {

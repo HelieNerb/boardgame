@@ -69,12 +69,17 @@
     <p id="culture-message" class="message"></p>
   </div>
 
-  <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
-    <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
-    <p id="texte-etoile"></p>
-    <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
-    <button onclick="choisirEtoile(false)">Renoncer</button>
-  </div>
+    <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
+      <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
+      <p id="texte-etoile"></p>
+      <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
+      <button onclick="choisirEtoile(false)">Renoncer</button>
+    </div>
+    <div id="choix-chemin" class="dialogue-etoile dialogue-chemin" role="dialog" aria-modal="true" aria-labelledby="titre-chemin" hidden>
+      <h2 id="titre-chemin">À toi de choisir ta route !</h2>
+      <p id="texte-chemin">Ce choix ne consomme pas de case du dé.</p>
+      <div id="options-chemin"></div>
+    </div>
 
   <div id="boutique" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-boutique" hidden>
     <h2 id="titre-boutique">Boutique 🛒</h2>
@@ -232,6 +237,11 @@
       socket.emit('choix-etoile', { acheter });
     }
 
+    function choisirChemin(choix) {
+      document.getElementById('choix-chemin').hidden = true;
+      socket.emit('choisir-chemin', { choix });
+    }
+
     socket.on('rejoint', ({ code, pseudo, token }) => {
       monPseudo = pseudo;
       sauverSession({ code, pseudo, token });
@@ -249,16 +259,17 @@
       document.getElementById('jeu').hidden = false;
     });
 
-    socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
-      document.getElementById('choix-etoile').hidden = true;
-      const monTour = joueurActif === monPseudo;
-      // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
-      document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
-      document.getElementById('de').textContent = '';
-      document.getElementById('statut-tour').textContent = monTour
-        ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
-        : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
-    });
+      socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
+        document.getElementById('choix-etoile').hidden = true;
+        document.getElementById('choix-chemin').hidden = true;
+        const monTour = joueurActif === monPseudo;
+        // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
+        document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
+        document.getElementById('de').textContent = '';
+        document.getElementById('statut-tour').textContent = monTour
+          ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
+          : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
+      });
 
     socket.on('resultat-de', (de) => {
       document.getElementById('de').textContent = 'Tu as fait ' + de;
@@ -267,16 +278,32 @@
     socket.on('demande-achat-etoile', ({ pseudo, pieces, prix, pasRestants }) => {
       if (pseudo !== monPseudo) return;
 
-      const peutAcheter = pieces >= prix;
-      document.getElementById('texte-etoile').textContent = peutAcheter
-        ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
-        : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
-      document.getElementById('acheter-etoile').disabled = !peutAcheter;
-      document.getElementById('choix-etoile').hidden = false;
-      document.getElementById('de').textContent = pasRestants > 1
-        ? 'Déplacement en pause : ' + (pasRestants - 1) + ' case(s) restante(s) après ton choix.'
-        : 'Déplacement en pause sur la dernière case.';
-    });
+        const peutAcheter = pieces >= prix;
+        document.getElementById('texte-etoile').textContent = peutAcheter
+          ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
+          : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
+        document.getElementById('acheter-etoile').disabled = !peutAcheter;
+        document.getElementById('choix-etoile').hidden = false;
+        document.getElementById('de').textContent = pasRestants > 0
+          ? 'Déplacement en pause : ' + pasRestants + ' case(s) restante(s) après ton choix.'
+          : 'Déplacement en pause sur la dernière case.';
+      });
+
+      socket.on('demande-choix-chemin', ({ pseudo, options, pasRestants }) => {
+        if (pseudo !== monPseudo) return;
+        const conteneur = document.getElementById('options-chemin');
+        conteneur.innerHTML = '';
+        for (const option of options) {
+          const bouton = document.createElement('button');
+          bouton.textContent = option.label;
+          bouton.addEventListener('click', () => choisirChemin(option.id));
+          conteneur.appendChild(bouton);
+        }
+        document.getElementById('texte-chemin').textContent =
+          'Choisis une direction. Cette case ne consomme pas de déplacement.' +
+          (pasRestants > 0 ? ' Il te reste ' + pasRestants + ' case(s) à parcourir.' : '');
+        document.getElementById('choix-chemin').hidden = false;
+      });
 
     // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné
     socket.on('effet-case', ({ pseudo, message }) => {

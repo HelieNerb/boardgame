@@ -67,13 +67,51 @@ li {
   font-size: 1.3rem;
 }
 
+.plateau-defilement {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.plateau-scene {
+  position: relative;
+  margin: 0 auto;
+}
+
+.liaisons-plateau {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.liaison-circuit {
+  stroke: #536897;
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.liaison-raccourci {
+  stroke: #f2c84b;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 5 3;
+}
+
 .plateau {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 0.5rem;
   justify-content: center;
+  width: max-content;
+  margin: 0 auto;
 }
 
 .case {
+  box-sizing: border-box;
   width: 120px;
   min-height: 90px;
   padding: 0.5rem;
