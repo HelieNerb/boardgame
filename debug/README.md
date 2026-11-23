@@ -34,6 +34,11 @@ présent sur l'écran principal. Le serveur refuse de démarrer sans les trois j
 une option. En fin de mini-jeu, les résultats puis la fin de partie sont affichés
 comme dans le jeu normal.
 
+Dans **Réglages du debug**, tu peux fixer les pièces d'un joueur, lui donner un
+objet (deux emplacements maximum) ou vider son inventaire. Tu peux aussi imposer
+le prochain dé, déplacer un joueur vers une case quand il attend son lancer, ou
+passer le mini-jeu en cours pour continuer le parcours.
+
 Le sélecteur d'images utilise les fichiers présents dans `public/images/quiz1/`,
 lus au démarrage du serveur : il suit la banque d'images du jeu sans liste copiée.
 

@@ -6,6 +6,7 @@ let state = null;
 let timer = null;
 let disposed = false;
 let busy = false;
+let boardOptionsReady = false;
 
 function config() {
   return { type: $('type').value, image: $('image').value, questions: Number($('questions').value), fast: $('fast').checked };
@@ -27,7 +28,30 @@ function controls() {
   $('open-phones').disabled = !state?.code;
   $('start').disabled = busy || !state?.code || connected !== 3 || state?.running;
   $('stop').disabled = busy || !state?.running;
+  $('skip-minigame').disabled = busy || !state?.running || state?.phase !== 'minijeu';
   $('status').textContent = state?.code ? 'Code ' + state.code + ' — ' + connected + '/3 téléphones connectés' : 'Connexion de l’écran principal…';
+  renderTools();
+}
+function renderTools() {
+  if (!state) {
+    for (const id of ['set-coins', 'give-item', 'clear-items', 'set-die', 'teleport', 'skip-minigame']) $(id).disabled = true;
+    return;
+  }
+  if (!boardOptionsReady && state.board) {
+    $('position').replaceChildren(...state.board.map((type, index) => new Option(index + ' — ' + type, index)));
+    boardOptionsReady = true;
+  }
+  const target = state.players.find((player) => player.pseudo === $('target-player').value);
+  $('target-info').textContent = target?.connected
+    ? target.pieces + ' pièces · ' + target.inventaire.length + '/2 objets · case ' + target.position
+    : 'Joueur non connecté.';
+  $('die-status').textContent = state.nextDie ? 'Prochain lancer : ' + state.nextDie : 'Prochain lancer : aléatoire.';
+  const inGame = !!state.running;
+  $('set-coins').disabled = busy || !inGame || !target?.connected;
+  $('give-item').disabled = busy || !inGame || !target?.connected || target.inventaire.length >= 2;
+  $('clear-items').disabled = busy || !inGame || !target?.connected || target.inventaire.length === 0;
+  $('set-die').disabled = busy || !inGame;
+  $('teleport').disabled = busy || !inGame || state.phase !== 'attente-de' || !target?.connected;
 }
 async function refresh() {
   try {
@@ -73,17 +97,37 @@ $('open-phones').addEventListener('click', () => {
   for (let player = 1; player <= 3; player++) openPhone(player);
 });
 for (const button of document.querySelectorAll('[data-player]')) button.addEventListener('click', () => openPhone(Number(button.dataset.player)));
-for (const input of document.querySelectorAll('select, input')) input.addEventListener('change', () => {
+for (const input of [$('type'), $('image'), $('questions'), $('fast')]) input.addEventListener('change', () => {
   if (id) request(id + '/settings', config()).catch((cause) => error(cause.message));
 });
+async function tool(action, payload = {}) {
+  if (!id || busy) return;
+  busy = true; error(''); controls();
+  try {
+    await request(id + '/tools', { action, ...payload });
+    state = await request(id);
+    $('tool-status').textContent = 'Réglage appliqué.';
+  } catch (cause) {
+    $('tool-status').textContent = cause.message;
+  } finally {
+    busy = false; controls();
+  }
+}
 async function command(name) {
   if (!id || busy) return;
   busy = true; error(''); controls();
-  try { await request(id + '/' + name, name === 'start' ? config() : {}); state = await request(id); }
+  try { await request(id + '/' + name, name === 'start' ? config() : {}); state = await request(id); $('tool-status').textContent = ''; }
   catch (cause) { error(cause.message); }
   finally { busy = false; controls(); }
 }
 $('start').addEventListener('click', () => command('start'));
 $('stop').addEventListener('click', () => command('stop'));
+$('target-player').addEventListener('change', renderTools);
+$('set-coins').addEventListener('click', () => tool('pieces', { pseudo: $('target-player').value, pieces: Number($('coins').value) }));
+$('give-item').addEventListener('click', () => tool('item', { pseudo: $('target-player').value, itemId: $('item').value }));
+$('clear-items').addEventListener('click', () => tool('clear-items', { pseudo: $('target-player').value }));
+$('set-die').addEventListener('click', () => tool('die', { value: $('die').value === 'random' ? 'random' : Number($('die').value) }));
+$('teleport').addEventListener('click', () => tool('position', { pseudo: $('target-player').value, position: Number($('position').value) }));
+$('skip-minigame').addEventListener('click', () => tool('skip-minigame'));
 window.addEventListener('pagehide', () => { disposed = true; clearTimeout(timer); });
 refresh();

@@ -5,7 +5,8 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 process.chdir(path.join(__dirname, '..'));
 process.env.PORT = process.env.DEBUG_PORT || '3001';
-const { app, server, io, parties, finDeTour, finDePartie, demarrerTourJoueur, plateauAvecEtoile, LIENS_PLATEAU } = require('../server');
+const { app, server, io, parties, finDeTour, finDePartie, demarrerTourJoueur, tourSuivant, plateauAvecEtoile, LIENS_PLATEAU, PLATEAU } = require('../server');
+const { SHOP_ITEMS, MAX_ITEMS } = require('../shop');
 const sessions = new Map();
 const router = express.Router();
 const noms = ['Joueur 1', 'Joueur 2', 'Joueur 3'];
@@ -43,8 +44,37 @@ function start(session, config) {
   clearTimeout(partie.timer);
   partie.miniJeu?.arreter();
   const testerPlateau = config.type === 'plateau';
-  Object.assign(partie, { demarree: true, tourActuel: 1, nbTours: testerPlateau ? 3 : 1, indexActif: 0 });
-  for (const joueur of partie.joueurs) Object.assign(joueur, { position: 0, pieces: 5, etoiles: 0 });
+  Object.assign(partie, {
+    demarree: true,
+    tourActuel: 1,
+    nbTours: testerPlateau ? 3 : 1,
+    indexActif: 0,
+    debugDe: null,
+    miniJeuxRestants: null,
+    deplacementSuspendu: null,
+    routeChoisie: null,
+    offreShop: null,
+    debugMiniJeuOptions: {
+      image: config.image,
+      nbQuestions: config.questions,
+      ...(config.fast ? {
+        durees: {
+          quiz: { ecriture: 20, vote: 15, resultats: 3 },
+          culture: { lecture: 1, question: 12, correction: 2, classement: 3 },
+          course: { preparation: 2, course: 10, resultats: 3 },
+        },
+        objectif: 30,
+      } : {}),
+    },
+  });
+  for (const joueur of partie.joueurs) Object.assign(joueur, {
+    position: 0,
+    pieces: 5,
+    etoiles: 0,
+    inventaire: [],
+    bonusDeplacement: 0,
+    bloqueProchainTour: false,
+  });
   io.to(code).emit('partie-demarree', { plateau: plateauAvecEtoile(partie), liens: LIENS_PLATEAU, joueurs: partie.joueurs });
   if (testerPlateau) {
     demarrerTourJoueur(code);
@@ -83,7 +113,23 @@ router.use('/api/:id', (req, res, next) => {
 router.get('/api/:id', (req, res) => {
   const session = req.debugSession;
   const partie = parties.get(session.code);
-  res.json({ code: partie ? session.code : null, phase: partie?.phase || 'salon', running: !!partie?.demarree && partie.phase !== 'fin', players: noms.map((pseudo) => ({ pseudo, connected: partie?.joueurs.some((j) => j.pseudo === pseudo && j.connecte) || false })) });
+  res.json({
+    code: partie ? session.code : null,
+    phase: partie?.phase || 'salon',
+    running: !!partie?.demarree && partie.phase !== 'fin',
+    nextDie: partie?.debugDe ?? null,
+    board: PLATEAU.map((casePlateau) => casePlateau.type),
+    players: noms.map((pseudo) => {
+      const joueur = partie?.joueurs.find((j) => j.pseudo === pseudo);
+      return {
+        pseudo,
+        connected: joueur?.connecte || false,
+        pieces: joueur?.pieces ?? null,
+        inventaire: joueur?.inventaire || [],
+        position: joueur?.position ?? null,
+      };
+    }),
+  });
 });
 router.post('/api/:id/settings', (req, res) => { req.debugSession.settings = settings(req.body); res.json({ ok: true }); });
 router.post('/api/:id/start', (req, res) => { start(req.debugSession, settings(req.body)); res.json({ ok: true }); });
@@ -94,6 +140,49 @@ router.post('/api/:id/stop', (req, res) => {
     partie.miniJeu?.arreter(); partie.miniJeu = null; partie.typeMiniJeu = null; partie.demarree = false;
     clearTimeout(partie.timer); finDePartie(session.code);
   }
+  res.json({ ok: true });
+});
+router.post('/api/:id/tools', (req, res) => {
+  const { action, pseudo, pieces, itemId, value, position } = req.body || {};
+  const partie = parties.get(req.debugSession.code);
+  if (!partie?.demarree || partie.phase === 'fin') throw new Error('Aucune partie debug en cours.');
+
+  if (action === 'die') {
+    if (value !== 'random' && (!Number.isInteger(value) || value < 1 || value > 6)) throw new Error('Le dé doit être aléatoire ou valoir de 1 à 6.');
+    partie.debugDe = value === 'random' ? null : value;
+    return res.json({ ok: true });
+  }
+
+  if (action === 'skip-minigame') {
+    if (partie.phase !== 'minijeu' || !partie.miniJeu) throw new Error('Aucun mini-jeu à passer.');
+    partie.miniJeu.arreter();
+    partie.miniJeu = null;
+    partie.typeMiniJeu = null;
+    tourSuivant(req.debugSession.code);
+    return res.json({ ok: true });
+  }
+
+  const joueur = partie.joueurs.find((j) => j.pseudo === pseudo);
+  if (!joueur) throw new Error('Joueur introuvable.');
+
+  if (action === 'pieces') {
+    if (!Number.isInteger(pieces) || pieces < 0 || pieces > 9999) throw new Error('Les pièces doivent être un nombre de 0 à 9 999.');
+    joueur.pieces = pieces;
+  } else if (action === 'item') {
+    if (!SHOP_ITEMS.some((item) => item.id === itemId)) throw new Error('Objet introuvable.');
+    if (joueur.inventaire.length >= MAX_ITEMS) throw new Error('Inventaire plein (2 objets max).');
+    joueur.inventaire.push(itemId);
+  } else if (action === 'clear-items') {
+    joueur.inventaire = [];
+  } else if (action === 'position') {
+    if (partie.phase !== 'attente-de') throw new Error('La position se règle entre deux déplacements, quand un joueur attend son dé.');
+    if (!Number.isInteger(position) || position < 0 || position >= PLATEAU.length) throw new Error('Position invalide.');
+    joueur.position = position;
+  } else {
+    throw new Error('Réglage debug inconnu.');
+  }
+
+  io.to(req.debugSession.code).emit('positions', partie.joueurs);
   res.json({ ok: true });
 });
 

@@ -330,9 +330,10 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
     });
     return;
   }
-  // Case shop : on ouvre la boutique et on attend le choix du joueur.
-  if (pipsRestants === 0 && PLATEAU[joueur.position].type === 'shop') {
+  // La boutique interrompt le déplacement lorsqu'on la traverse, même s'il reste des cases.
+  if (PLATEAU[joueur.position].type === 'shop') {
     partie.phase = 'choix-shop';
+    partie.deplacementSuspendu = { type: 'shop', pseudo, pasRestants: pipsRestants };
     partie.offreShop = genererOffre();
     io.to(code).emit('positions', partie.joueurs);
     io.to(code).emit('effet-case', {
@@ -345,7 +346,8 @@ function deplacerPasAPas(code, pseudo, pasRestants) {
       io.to(socketId).emit('ouvrir-shop', {
         offre: partie.offreShop,
         pieces: joueur.pieces,
-        inventaire: joueur.inventaire
+        inventaire: joueur.inventaire,
+        pasRestants: pipsRestants,
       });
     }
     return;
@@ -459,6 +461,9 @@ function finDeTour(code, reglages = {}) {
   const partie = parties.get(code);
   if (!partie) return;
 
+  const type = reglages.type || piocherMiniJeu(partie);
+  const debug = partie.debugMiniJeuOptions || {};
+
   if (IMAGES_QUIZ1.length === 0) {
     console.warn(`Aucune image dans ${DOSSIER_QUIZ1} : le quiz du titre drôle ne sera pas proposé`);
   }
@@ -468,6 +473,10 @@ function finDeTour(code, reglages = {}) {
     io,
     code,
     partie,
+    image: reglages.image || debug.image,
+    nbQuestions: reglages.nbQuestions ?? debug.nbQuestions,
+    objectif: reglages.objectif ?? debug.objectif,
+    durees: reglages.durees || debug.durees?.[type],
     envoyerAuJoueur: (pseudo, evenement, donnees) => {
       const socketId = partie.sockets.get(pseudo);
       if (socketId) io.to(socketId).emit(evenement, donnees);
@@ -481,7 +490,6 @@ function finDeTour(code, reglages = {}) {
     ...reglages,
   };
 
-  const type = reglages.type || piocherMiniJeu(partie);
   partie.phase = 'minijeu';
   partie.typeMiniJeu = type; // [AJOUT] pour savoir à quel mini-jeu transmettre les messages
 
@@ -489,7 +497,7 @@ function finDeTour(code, reglages = {}) {
   io.to(code).emit('minijeu', { type });
 
   if (type === 'quiz') {
-    partie.miniJeu = demarrerQuiz({ ...options, image: reglages.image || piocherImage(partie) });
+    partie.miniJeu = demarrerQuiz({ ...options, image: reglages.image || debug.image || piocherImage(partie) });
   } else if (type === 'culture') {
     partie.miniJeu = demarrerCulture(options);
   } else {
@@ -715,6 +723,13 @@ io.on('connection', (socket) => {
           options: (CHOIX_CHEMINS[joueur.position] || []).map(({ id, label }) => ({ id, label })),
           pasRestants: partie.deplacementSuspendu.pasRestants,
         });
+      } else if (partie.phase === 'choix-shop' && partie.deplacementSuspendu?.pseudo === pseudo) {
+        socket.emit('ouvrir-shop', {
+          offre: partie.offreShop,
+          pieces: joueur.pieces,
+          inventaire: joueur.inventaire,
+          pasRestants: partie.deplacementSuspendu.pasRestants,
+        });
       } else {
         socket.emit('tour', infosTour(partie));
       }
@@ -790,7 +805,10 @@ io.on('connection', (socket) => {
 
     partie.phase = 'deplacement';
 
-    const de = Math.floor(Math.random() * 6) + 1;
+    const de = Number.isInteger(partie.debugDe)
+      ? partie.debugDe
+      : Math.floor(Math.random() * 6) + 1;
+    partie.debugDe = null;
     socket.emit('resultat-de', de);
 
     // Boost : on ajoute les cases bonus au dé, puis on les remet à zéro
@@ -804,7 +822,9 @@ io.on('connection', (socket) => {
   socket.on('achat-shop', ({ itemId } = {}) => {
     const code = socket.data.code;
     const partie = parties.get(code);
-    if (!partie || partie.phase !== 'choix-shop') return;
+    const suspendu = partie && partie.deplacementSuspendu;
+    if (!partie || partie.phase !== 'choix-shop' || !suspendu || suspendu.type !== 'shop' ||
+        suspendu.pseudo !== socket.data.pseudo) return;
     const joueur = joueurActif(partie);
     if (!joueur || joueur.pseudo !== socket.data.pseudo) return;
 
@@ -829,9 +849,16 @@ io.on('connection', (socket) => {
     }
 
     partie.offreShop = null;
+    partie.deplacementSuspendu = null;
     partie.phase = 'deplacement';
     io.to(code).emit('positions', partie.joueurs);
-    partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
+    if (suspendu.pasRestants > 0) {
+      partie.timer = setTimeout(() => {
+        deplacerPasAPas(code, joueur.pseudo, suspendu.pasRestants);
+      }, 500);
+    } else {
+      partie.timer = setTimeout(() => joueurSuivant(code), DELAI_FIN_TOUR_JOUEUR);
+    }
   });
 
   // Le joueur actif utilise un objet avant de lancer le dé
@@ -1006,7 +1033,7 @@ if (require.main === module) {
 
 module.exports = {
   app, server, io, parties, finDeTour, finDePartie,
-  demarrerTourJoueur, LIENS_PLATEAU, miniJeuxDisponibles, piocherMiniJeu,
+  demarrerTourJoueur, tourSuivant, LIENS_PLATEAU, miniJeuxDisponibles, piocherMiniJeu,
   IMAGES_QUIZ1,
   PLATEAU,
   POSITIONS_ETOILE,

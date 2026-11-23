@@ -20,6 +20,29 @@
       <label>Questions <select id="questions"><option>1</option><option>3</option><option selected>5</option></select></label>
       <label>Image <select id="image"></select></label>
       <label><input id="fast" type="checkbox"> Durées courtes</label>
+      <hr>
+      <label>Joueur ciblé <select id="target-player"><option>Joueur 1</option><option>Joueur 2</option><option>Joueur 3</option></select></label>
+      <span id="target-info" class="debug-info"></span>
+      <div class="debug-tools">
+        <label>Pièces <input id="coins" type="number" min="0" max="9999" value="50"></label>
+        <button id="set-coins" disabled>Définir les pièces</button>
+        <label>Objet <select id="item">
+          <option value="boost5">Petit boost</option><option value="boost10">Gros boost</option>
+          <option value="malus">Malus</option><option value="coffre">Coffre</option>
+          <option value="pirate">Bateau pirate</option><option value="voletoile">Vol d’étoile</option>
+        </select></label>
+        <button id="give-item" disabled>Donner l’objet</button>
+        <button id="clear-items" disabled>Vider l’inventaire</button>
+      </div>
+      <div class="debug-tools">
+        <label>Prochain dé <select id="die"><option value="random">Aléatoire</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
+        <button id="set-die" disabled>Régler le prochain dé</button>
+        <label>Position <select id="position"></select></label>
+        <button id="teleport" disabled>Déplacer le joueur</button>
+        <button id="skip-minigame" disabled>Passer le mini-jeu</button>
+      </div>
+      <p id="die-status" class="debug-info"></p>
+      <p id="tool-status" class="debug-info" role="status"></p>
     </details>
     <p id="status" class="message" role="status">Démarrez node debug/server.js</p>
     <p id="error" class="message" role="alert" hidden></p>

@@ -346,10 +346,11 @@
     let derniersJoueurs = [];   // la dernière liste de joueurs reçue du serveur
     let peutUtiliser = false;   // vrai seulement à mon tour, avant de lancer le dé
 
-    // Le serveur m'envoie les 3 objets quand je m'arrête sur la case shop
-    socket.on('ouvrir-shop', ({ offre, pieces, inventaire }) => {
+    // La boutique s'ouvre quand on passe dessus ou qu'on s'y arrête.
+    socket.on('ouvrir-shop', ({ offre, pieces, inventaire, pasRestants = 0 }) => {
       document.getElementById('texte-boutique').textContent =
-        'Tu as ' + pieces + ' pièces et ' + inventaire.length + '/2 objets.';
+        'Tu as ' + pieces + ' pièces et ' + inventaire.length + '/2 objets.' +
+        (pasRestants > 0 ? ' Il te restera ' + pasRestants + ' case(s) à parcourir après.' : ' Tu es sur ta dernière case.');
       document.getElementById('erreur-boutique').textContent = '';
 
       const div = document.getElementById('offre-boutique');

@@ -434,17 +434,20 @@
         svg.innerHTML = '';
         const largeur = Math.max(...plateau.map(c => c.colonne));
         const hauteur = Math.max(...plateau.map(c => c.ligne));
-        const pasX = 128;
-        const pasY = 98;
-        const largeurPx = largeur * 120 + (largeur - 1) * 8;
-        const hauteurPx = hauteur * 90 + (hauteur - 1) * 8;
+        const largeurCase = 120;
+        const hauteurCase = 112;
+        const espace = 8;
+        const pasX = largeurCase + espace;
+        const pasY = hauteurCase + espace;
+        const largeurPx = largeur * largeurCase + (largeur - 1) * espace;
+        const hauteurPx = hauteur * hauteurCase + (hauteur - 1) * espace;
         scene.style.width = largeurPx + 'px';
         scene.style.height = hauteurPx + 'px';
         svg.setAttribute('viewBox', '0 0 ' + largeurPx + ' ' + hauteurPx);
         svg.setAttribute('width', largeurPx);
         svg.setAttribute('height', hauteurPx);
-        div.style.gridTemplateColumns = 'repeat(' + largeur + ', 120px)';
-        div.style.gridTemplateRows = 'repeat(' + hauteur + ', 90px)';
+        div.style.gridTemplateColumns = 'repeat(' + largeur + ', ' + largeurCase + 'px)';
+        div.style.gridTemplateRows = 'repeat(' + hauteur + ', ' + hauteurCase + 'px)';
 
         for (const lien of liensPlateau) {
           const depart = plateau[lien.from];
@@ -452,9 +455,9 @@
           if (!depart || !arrivee) continue;
           const ligne = document.createElementNS('http://www.w3.org/2000/svg', 'line');
           ligne.setAttribute('x1', (depart.colonne - 1) * pasX + 60);
-          ligne.setAttribute('y1', (depart.ligne - 1) * pasY + 45);
+          ligne.setAttribute('y1', (depart.ligne - 1) * pasY + hauteurCase / 2);
           ligne.setAttribute('x2', (arrivee.colonne - 1) * pasX + 60);
-          ligne.setAttribute('y2', (arrivee.ligne - 1) * pasY + 45);
+          ligne.setAttribute('y2', (arrivee.ligne - 1) * pasY + hauteurCase / 2);
           ligne.setAttribute('class', 'liaison-' + lien.type);
           svg.appendChild(ligne);
         }
@@ -470,20 +473,20 @@
           caseDiv.appendChild(titre);
 
           const pions = document.createElement('div');
-          pions.className = 'pions-case';
-          for (const joueur of joueurs) {
-            if (joueur.position === i) {
-              const pion = document.createElement('div');
-              pion.className = 'pion-case'
-                + (joueur.pseudo === pseudoActif ? ' pion-actif' : '')
-                + (joueur.connecte === false ? ' pion-deconnecte' : '');
-              pion.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-plateau'));
-              const nom = document.createElement('span');
-              nom.className = 'pion-nom';
-              nom.textContent = joueur.pseudo;
-              pion.appendChild(nom);
-              pions.appendChild(pion);
-            }
+          const joueursCase = joueurs.filter((joueur) => joueur.position === i);
+          pions.className = 'pions-case pions-' + joueursCase.length;
+          for (const joueur of joueursCase) {
+            const pion = document.createElement('div');
+            pion.className = 'pion-case'
+              + (joueur.pseudo === pseudoActif ? ' pion-actif' : '')
+              + (joueur.connecte === false ? ' pion-deconnecte' : '');
+            pion.appendChild(MayoAvatar.creer(joueur.avatar, 'avatar-sprite avatar-sprite-plateau'));
+            const nom = document.createElement('span');
+            nom.className = 'pion-nom';
+            nom.textContent = joueur.pseudo;
+            nom.title = joueur.pseudo;
+            pion.appendChild(nom);
+            pions.appendChild(pion);
           }
           if (pions.childElementCount) caseDiv.appendChild(pions);
 
