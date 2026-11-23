@@ -25,8 +25,8 @@ async function request(route, data) {
 function controls() {
   const connected = state?.players.filter((p) => p.connected).length || 0;
   $('open-phones').disabled = !state?.code;
-  $('start').disabled = busy || !state?.code || connected !== 3 || state.phase === 'minijeu';
-  $('stop').disabled = busy || state?.phase !== 'minijeu';
+  $('start').disabled = busy || !state?.code || connected !== 3 || state?.running;
+  $('stop').disabled = busy || !state?.running;
   $('status').textContent = state?.code ? 'Code ' + state.code + ' — ' + connected + '/3 téléphones connectés' : 'Connexion de l’écran principal…';
 }
 async function refresh() {

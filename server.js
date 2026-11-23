@@ -1006,6 +1006,8 @@ if (require.main === module) {
 
 module.exports = {
   app, server, io, parties, finDeTour, finDePartie,
+  demarrerTourJoueur, LIENS_PLATEAU, miniJeuxDisponibles, piocherMiniJeu,
+  IMAGES_QUIZ1,
   PLATEAU,
   POSITIONS_ETOILE,
   choisirPositionEtoile,

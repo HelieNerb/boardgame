@@ -11,21 +11,22 @@ const {
   appliquerEffetCase,
 } = require('../server');
 
-test('le plateau contient 24 cases et commence au départ', () => {
-  assert.equal(PLATEAU.length, 24);
-  assert.equal(PLATEAU[0], 'depart');
-  assert.ok(PLATEAU.every((type) => ['depart', 'bleue', 'rouge', 'shop'].includes(type)));
+test('le plateau contient 40 cases et commence au départ', () => {
+  assert.equal(PLATEAU.length, 40);
+  assert.equal(PLATEAU[0].type, 'depart');
+  assert.ok(PLATEAU.every((casePlateau) => ['depart', 'bleue', 'rouge', 'choix', 'shop'].includes(casePlateau.type)));
+  assert.equal(PLATEAU.filter((casePlateau) => casePlateau.type === 'shop').length, 1);
 });
 
 test('la position de l’étoile évite sa position actuelle et les joueurs', () => {
   const partie = {
-    etoilePosition: 6,
+    etoilePosition: 8,
     joueurs: [{ position: 12 }, { position: 2 }],
   };
   const originalRandom = Math.random;
   Math.random = () => 0;
   try {
-    assert.equal(choisirPositionEtoile(partie), 18);
+    assert.equal(choisirPositionEtoile(partie), 16);
   } finally {
     Math.random = originalRandom;
   }
@@ -33,23 +34,23 @@ test('la position de l’étoile évite sa position actuelle et les joueurs', ()
 
 test('si toutes les cases étoile sont occupées, une autre position est choisie', () => {
   const partie = {
-    etoilePosition: 6,
+    etoilePosition: 8,
     joueurs: POSITIONS_ETOILE.map((position) => ({ position })),
   };
   const originalRandom = Math.random;
   Math.random = () => 0;
   try {
-    assert.equal(choisirPositionEtoile(partie), 12);
+    assert.equal(choisirPositionEtoile(partie), 16);
   } finally {
     Math.random = originalRandom;
   }
 });
 
 test('le plateau affiché remplace la case courante par une étoile sans muter le modèle', () => {
-  const partie = { etoilePosition: 6 };
+  const partie = { etoilePosition: 8 };
   const resultat = plateauAvecEtoile(partie);
-  assert.equal(resultat[6], 'etoile');
-  assert.equal(PLATEAU[6], 'bleue');
+  assert.equal(resultat[8].type, 'etoile');
+  assert.notEqual(PLATEAU[8].type, 'etoile');
   assert.equal(resultat.length, PLATEAU.length);
 });
 

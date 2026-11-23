@@ -5,7 +5,7 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 process.chdir(path.join(__dirname, '..'));
 process.env.PORT = process.env.DEBUG_PORT || '3001';
-const { app, server, io, parties, finDeTour, finDePartie, plateauAvecEtoile } = require('../server');
+const { app, server, io, parties, finDeTour, finDePartie, demarrerTourJoueur, plateauAvecEtoile, LIENS_PLATEAU } = require('../server');
 const sessions = new Map();
 const router = express.Router();
 const noms = ['Joueur 1', 'Joueur 2', 'Joueur 3'];
@@ -28,7 +28,7 @@ router.use(express.json({ limit: '4kb' }));
 
 function settings(body = {}) {
   const config = { type: body.type || 'course', fast: body.fast === true, questions: Number(body.questions ?? 5), image: body.image || images[0] };
-  if (!['quiz', 'culture', 'course'].includes(config.type) || !Number.isInteger(config.questions) || config.questions < 1 || config.questions > 5) throw new Error('Réglages invalides.');
+  if (!['plateau', 'quiz', 'culture', 'course'].includes(config.type) || !Number.isInteger(config.questions) || config.questions < 1 || config.questions > 5) throw new Error('Réglages invalides.');
   if (!images.includes(config.image)) throw new Error('Image introuvable.');
   return config;
 }
@@ -42,9 +42,14 @@ function start(session, config) {
   session.settings = config;
   clearTimeout(partie.timer);
   partie.miniJeu?.arreter();
-  Object.assign(partie, { demarree: true, tourActuel: 1, nbTours: 1, indexActif: 0 });
+  const testerPlateau = config.type === 'plateau';
+  Object.assign(partie, { demarree: true, tourActuel: 1, nbTours: testerPlateau ? 3 : 1, indexActif: 0 });
   for (const joueur of partie.joueurs) Object.assign(joueur, { position: 0, pieces: 5, etoiles: 0 });
-  io.to(code).emit('partie-demarree', { plateau: plateauAvecEtoile(partie), joueurs: partie.joueurs });
+  io.to(code).emit('partie-demarree', { plateau: plateauAvecEtoile(partie), liens: LIENS_PLATEAU, joueurs: partie.joueurs });
+  if (testerPlateau) {
+    demarrerTourJoueur(code);
+    return;
+  }
   io.to(code).emit('tour', { tourActuel: 1, nbTours: 1, joueurActif: partie.joueurs[0].pseudo, peutLancer: false });
   const durees = config.fast ? {
     quiz: { ecriture: 20, vote: 15, resultats: 3 },
@@ -78,14 +83,14 @@ router.use('/api/:id', (req, res, next) => {
 router.get('/api/:id', (req, res) => {
   const session = req.debugSession;
   const partie = parties.get(session.code);
-  res.json({ code: partie ? session.code : null, phase: partie?.phase || 'salon', players: noms.map((pseudo) => ({ pseudo, connected: partie?.joueurs.some((j) => j.pseudo === pseudo && j.connecte) || false })) });
+  res.json({ code: partie ? session.code : null, phase: partie?.phase || 'salon', running: !!partie?.demarree && partie.phase !== 'fin', players: noms.map((pseudo) => ({ pseudo, connected: partie?.joueurs.some((j) => j.pseudo === pseudo && j.connecte) || false })) });
 });
 router.post('/api/:id/settings', (req, res) => { req.debugSession.settings = settings(req.body); res.json({ ok: true }); });
 router.post('/api/:id/start', (req, res) => { start(req.debugSession, settings(req.body)); res.json({ ok: true }); });
 router.post('/api/:id/stop', (req, res) => {
   const session = req.debugSession;
   const partie = parties.get(session.code);
-  if (partie?.phase === 'minijeu') {
+  if (partie?.demarree && partie.phase !== 'fin') {
     partie.miniJeu?.arreter(); partie.miniJeu = null; partie.typeMiniJeu = null; partie.demarree = false;
     clearTimeout(partie.timer); finDePartie(session.code);
   }

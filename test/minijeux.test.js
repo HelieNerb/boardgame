@@ -2,6 +2,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { demarrerQuiz } = require('../minijeux/quiz');
 const { demarrerCulture } = require('../minijeux/culture-g');
+const { miniJeuxDisponibles, piocherMiniJeu, IMAGES_QUIZ1 } = require('../server');
+
+test('le tirage d’une partie propose course, culture et quiz avec des images', () => {
+  const disponibles = miniJeuxDisponibles();
+  assert.ok(disponibles.includes('course'));
+  assert.ok(disponibles.includes('culture'));
+  assert.equal(disponibles.includes('quiz'), IMAGES_QUIZ1.length > 0);
+
+  if (IMAGES_QUIZ1.length > 0) {
+    const partie = { miniJeuxRestants: null };
+    const cycle = disponibles.map(() => piocherMiniJeu(partie));
+    assert.deepEqual([...cycle].sort(), [...disponibles].sort());
+  }
+});
 
 function creerBancEssai() {
   const evenements = [];

@@ -13,13 +13,16 @@ Ouvrir **http://127.0.0.1:3001/debug/**. L'entrée `debug/index.html` fonctionne
 2. Cliquer **Ouvrir 3 téléphones**. Si le navigateur bloque des fenêtres,
    ouvrir les boutons **Joueur 1**, **Joueur 2**, **Joueur 3** séparément.
 3. Attendre **3/3 téléphones connectés**.
-4. Choisir le mini-jeu, puis **Tester**. Jouer uniquement depuis les téléphones.
+4. Choisir **Plateau + les 3 mini-jeux** pour parcourir trois tours et voir
+   chacun des mini-jeux dans le tirage normal, ou choisir un mini-jeu pour le
+   lancer directement. Jouer uniquement depuis les téléphones.
 
 L'écran principal charge `public/host/index.html` et les téléphones chargent
 `public/play/index.html`. Les images, CSS, gestionnaires d'événements et
 connexions Socket.IO sont ceux du jeu normal. Le debug réutilise le véritable
-`server.js` et ne dessine aucun écran de jeu. Il prépare seulement le salon,
-les trois identités et le lancement direct du mini-jeu, sans passage sur le plateau.
+`server.js` et ne dessine aucun écran de jeu. Il prépare le salon et les trois
+identités ; le mode plateau lance le parcours officiel puis trois mini-jeux
+successifs tirés comme en partie.
 
 Les fenêtres ont des clés de session distinctes. Les rouvrir ne redémarre pas
 la partie et ne recharge pas les fenêtres déjà ouvertes. Une fenêtre rafraîchie
