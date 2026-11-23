@@ -39,6 +39,9 @@
     <p id="statut-tour" class="statut-tour"></p>
     <button id="bouton-de" onclick="lancerDe()" disabled>Lancer le dé</button>
     <p id="de"></p>
+    <!-- Boutique : mes objets et le choix d'une cible -->
+    <div id="mes-objets"></div>
+    <div id="choix-cible" hidden></div>
   </div>
 
   <div id="quiz" hidden>
@@ -66,11 +69,24 @@
     <p id="culture-message" class="message"></p>
   </div>
 
-  <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
-    <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
-    <p id="texte-etoile"></p>
-    <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
-    <button onclick="choisirEtoile(false)">Renoncer</button>
+    <div id="choix-etoile" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-etoile" hidden>
+      <h2 id="titre-etoile">Tu passes sur une étoile ⭐</h2>
+      <p id="texte-etoile"></p>
+      <button id="acheter-etoile" onclick="choisirEtoile(true)">Acheter l’étoile — 10 pièces</button>
+      <button onclick="choisirEtoile(false)">Renoncer</button>
+    </div>
+    <div id="choix-chemin" class="dialogue-etoile dialogue-chemin" role="dialog" aria-modal="true" aria-labelledby="titre-chemin" hidden>
+      <h2 id="titre-chemin">À toi de choisir ta route !</h2>
+      <p id="texte-chemin">Ce choix ne consomme pas de case du dé.</p>
+      <div id="options-chemin"></div>
+    </div>
+
+  <div id="boutique" class="dialogue-etoile" role="dialog" aria-modal="true" aria-labelledby="titre-boutique" hidden>
+    <h2 id="titre-boutique">Boutique 🛒</h2>
+    <p id="texte-boutique"></p>
+    <div id="offre-boutique"></div>
+    <button onclick="acheterObjet(null)">Ne rien acheter</button>
+    <p id="erreur-boutique" class="message"></p>
   </div>
 
   <div id="course" hidden>
@@ -229,6 +245,11 @@
       socket.emit('choix-etoile', { acheter });
     }
 
+    function choisirChemin(choix) {
+      document.getElementById('choix-chemin').hidden = true;
+      socket.emit('choisir-chemin', { choix });
+    }
+
     socket.on('rejoint', ({ code, pseudo, token }) => {
       monPseudo = pseudo;
       sauverSession({ code, pseudo, token });
@@ -246,16 +267,17 @@
       document.getElementById('jeu').hidden = false;
     });
 
-    socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
-      document.getElementById('choix-etoile').hidden = true;
-      const monTour = joueurActif === monPseudo;
-      // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
-      document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
-      document.getElementById('de').textContent = '';
-      document.getElementById('statut-tour').textContent = monTour
-        ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
-        : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
-    });
+      socket.on('tour', ({ tourActuel, nbTours, joueurActif, peutLancer }) => {
+        document.getElementById('choix-etoile').hidden = true;
+        document.getElementById('choix-chemin').hidden = true;
+        const monTour = joueurActif === monPseudo;
+        // peutLancer est faux si le dé a déjà été lancé (cas d'un joueur qui se reconnecte juste après)
+        document.getElementById('bouton-de').disabled = !(monTour && peutLancer);
+        document.getElementById('de').textContent = '';
+        document.getElementById('statut-tour').textContent = monTour
+          ? 'Tour ' + tourActuel + '/' + nbTours + ' — À toi de jouer !'
+          : 'Tour ' + tourActuel + '/' + nbTours + ' — C\'est au tour de ' + joueurActif;
+      });
 
     socket.on('resultat-de', (de) => {
       document.getElementById('de').textContent = 'Tu as fait ' + de;
@@ -264,16 +286,32 @@
     socket.on('demande-achat-etoile', ({ pseudo, pieces, prix, pasRestants }) => {
       if (pseudo !== monPseudo) return;
 
-      const peutAcheter = pieces >= prix;
-      document.getElementById('texte-etoile').textContent = peutAcheter
-        ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
-        : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
-      document.getElementById('acheter-etoile').disabled = !peutAcheter;
-      document.getElementById('choix-etoile').hidden = false;
-      document.getElementById('de').textContent = pasRestants > 1
-        ? 'Déplacement en pause : ' + (pasRestants - 1) + ' case(s) restante(s) après ton choix.'
-        : 'Déplacement en pause sur la dernière case.';
-    });
+        const peutAcheter = pieces >= prix;
+        document.getElementById('texte-etoile').textContent = peutAcheter
+          ? 'Tu as ' + pieces + ' pièces. Veux-tu acheter l’étoile pour ' + prix + ' pièces ?'
+          : 'Tu as ' + pieces + ' pièces, il en faut ' + prix + '. Tu dois renoncer.';
+        document.getElementById('acheter-etoile').disabled = !peutAcheter;
+        document.getElementById('choix-etoile').hidden = false;
+        document.getElementById('de').textContent = pasRestants > 0
+          ? 'Déplacement en pause : ' + pasRestants + ' case(s) restante(s) après ton choix.'
+          : 'Déplacement en pause sur la dernière case.';
+      });
+
+      socket.on('demande-choix-chemin', ({ pseudo, options, pasRestants }) => {
+        if (pseudo !== monPseudo) return;
+        const conteneur = document.getElementById('options-chemin');
+        conteneur.innerHTML = '';
+        for (const option of options) {
+          const bouton = document.createElement('button');
+          bouton.textContent = option.label;
+          bouton.addEventListener('click', () => choisirChemin(option.id));
+          conteneur.appendChild(bouton);
+        }
+        document.getElementById('texte-chemin').textContent =
+          'Choisis une direction. Cette case ne consomme pas de déplacement.' +
+          (pasRestants > 0 ? ' Il te reste ' + pasRestants + ' case(s) à parcourir.' : '');
+        document.getElementById('choix-chemin').hidden = false;
+      });
 
     // Le message d'effet est affiché sous le dé, uniquement pour le joueur concerné
     socket.on('effet-case', ({ pseudo, message }) => {
@@ -295,6 +333,137 @@
     socket.on('partie-demarree', ({ joueurs }) => afficherStats(joueurs));
 
     // ── Mini-jeu : quiz du titre drôle ──────────
+    // ── Boutique ──────────
+    const OBJETS = {
+      boost5: { nom: 'Petit boost', cible: false },
+      boost10: { nom: 'Gros boost', cible: false },
+      malus: { nom: 'Malus', cible: true },
+      coffre: { nom: 'Coffre', cible: true },
+      pirate: { nom: 'Bateau pirate', cible: false },
+      voletoile: { nom: "Vol d'étoile", cible: true },
+    };
+
+    let derniersJoueurs = [];   // la dernière liste de joueurs reçue du serveur
+    let peutUtiliser = false;   // vrai seulement à mon tour, avant de lancer le dé
+
+    // Le serveur m'envoie les 3 objets quand je m'arrête sur la case shop
+    socket.on('ouvrir-shop', ({ offre, pieces, inventaire }) => {
+      document.getElementById('texte-boutique').textContent =
+        'Tu as ' + pieces + ' pièces et ' + inventaire.length + '/2 objets.';
+      document.getElementById('erreur-boutique').textContent = '';
+
+      const div = document.getElementById('offre-boutique');
+      div.innerHTML = '';
+      for (const item of offre) {
+        const bouton = document.createElement('button');
+        bouton.textContent = item.nom + ' — ' + item.prix + ' pièces';
+        bouton.disabled = pieces < item.prix || inventaire.length >= 2;
+        bouton.onclick = () => acheterObjet(item.id);
+        div.appendChild(bouton);
+      }
+      document.getElementById('boutique').hidden = false;
+    });
+
+    // itemId = null : on sort sans rien acheter
+    function acheterObjet(itemId) {
+      socket.emit('achat-shop', itemId ? { itemId } : {});
+    }
+
+    socket.on('effet-case', ({ pseudo, type }) => {
+      if (pseudo !== monPseudo) return;
+      // Le serveur confirme l'achat (ou la sortie) : on ferme la boutique
+      if (type === 'shop') document.getElementById('boutique').hidden = true;
+      // Bloqué par un malus : plus d'objet utilisable ce tour-ci
+      if (type === 'malus') { peutUtiliser = false; afficherObjets(); }
+    });
+
+    socket.on('erreur-shop', (texte) => {
+      if (!document.getElementById('boutique').hidden) {
+        document.getElementById('erreur-boutique').textContent = texte;
+      } else {
+        document.getElementById('de').textContent = texte;
+      }
+    });
+
+    // Affiche mes objets avec un bouton « Utiliser »
+    function afficherObjets() {
+      const div = document.getElementById('mes-objets');
+      div.innerHTML = '';
+      const moi = derniersJoueurs.find((j) => j.pseudo === monPseudo);
+      if (!moi || !moi.inventaire || moi.inventaire.length === 0) return;
+
+      const titre = document.createElement('p');
+      titre.textContent = 'Mes objets :';
+      div.appendChild(titre);
+
+      for (const itemId of moi.inventaire) {
+        const bouton = document.createElement('button');
+        bouton.textContent = 'Utiliser : ' + OBJETS[itemId].nom;
+        bouton.disabled = !peutUtiliser;
+        bouton.onclick = () => utiliserObjet(itemId);
+        div.appendChild(bouton);
+      }
+    }
+
+    function utiliserObjet(itemId) {
+      if (!OBJETS[itemId].cible) {
+        socket.emit('utiliser-objet', { itemId });
+        return;
+      }
+      // Objet avec cible : on propose les autres joueurs
+      const div = document.getElementById('choix-cible');
+      div.innerHTML = '';
+      const texte = document.createElement('p');
+      texte.textContent = OBJETS[itemId].nom + ' : sur qui ?';
+      div.appendChild(texte);
+
+      const cibles = derniersJoueurs.filter((j) =>
+        j.pseudo !== monPseudo && (itemId !== 'voletoile' || j.etoiles > 0));
+      for (const j of cibles) {
+        const bouton = document.createElement('button');
+        bouton.textContent = j.pseudo + ' (' + j.pieces + ' 🪙, ' + j.etoiles + ' ⭐)';
+        bouton.onclick = () => {
+          div.hidden = true;
+          socket.emit('utiliser-objet', { itemId, cible: j.pseudo });
+        };
+        div.appendChild(bouton);
+      }
+      if (cibles.length === 0) {
+        const vide = document.createElement('p');
+        vide.textContent = 'Personne ne peut être visé.';
+        div.appendChild(vide);
+      }
+      const annuler = document.createElement('button');
+      annuler.textContent = 'Annuler';
+      annuler.onclick = () => { div.hidden = true; };
+      div.appendChild(annuler);
+      div.hidden = false;
+    }
+
+    socket.on('positions', (joueurs) => {
+      derniersJoueurs = joueurs;
+      afficherObjets();
+    });
+
+    socket.on('partie-demarree', ({ joueurs }) => {
+      derniersJoueurs = joueurs;
+      afficherObjets();
+    });
+
+    // Début d'un tour : objets utilisables seulement si c'est à moi et que je n'ai pas lancé le dé
+    socket.on('tour', ({ joueurActif, peutLancer }) => {
+      peutUtiliser = joueurActif === monPseudo && peutLancer;
+      document.getElementById('boutique').hidden = true;
+      document.getElementById('choix-cible').hidden = true;
+      afficherObjets();
+    });
+
+    // Dès que le dé est lancé, on ne peut plus utiliser d'objet
+    socket.on('resultat-de', () => {
+      peutUtiliser = false;
+      document.getElementById('choix-cible').hidden = true;
+      afficherObjets();
+    });
 
     let monIdQuiz = null; // l'id de mon propre titre (je ne peux pas voter pour lui)
 
